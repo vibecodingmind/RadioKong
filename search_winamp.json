@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://www.casthost.net/blog/how-do-i-setup-winamp-with-shoutcast",
+    "name": "Winamp Shoutcast DSP Plugin Setup (2026 Step-by-Step Guide)",
+    "snippet": "By setting up Winamp with Shoutcast, you gain control over your streaming quality, audio input options, and broadcast settings, all within a user-friendly ...\nThe DSP plugin for Shoutcast allows your audio to reach a broad audience by delivering your content through internet radio, a preferred choice for many ...",
+    "host_name": "www.casthost.net",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://geckohost.nz/internet-radio",
+    "name": "Internet Radio Broadcasting: An all you need to know guide",
+    "snippet": "The DSP Plugin made it possible to not only listen with Winamp, but broadcast as well. Shoutcast is responsible for the Internet radio boom of the late 90s and ...",
+    "host_name": "geckohost.nz",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://mobile.listen2myradio.com/tutorials/ShoutCast%20v2%20-%20Broadcasting%20with%20Winamp%20&%20ShoutCast%20DSP%20Plugin.pdf",
+    "name": "[PDF] Broadcasting with Winamp & ShoutCast DSP Plugin - Listen2MyRadio",
+    "snippet": "In this tutorial we are going to explain how to broadcast using the ShoutCast DSP Plugin with. Winamp to our ShoutCast v2 running under CentovaCast 3.",
+    "host_name": "mobile.listen2myradio.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.winamp.com/forum/shoutcast/shoutcast-technical-support/247592-questions-regarding-shoutcast-features",
+    "name": "Questions Regarding Shoutcast Features. - Winamp forums",
+    "snippet": "Something go south with your Shoutcast? Need tips to get up and streaming? Check in here with the experts.",
+    "host_name": "forums.winamp.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://client.magicstreams.services/knowledgebase/65/How-to-Setup-Shoutcast-with-Winamp.html?language=english",
+    "name": "How to Setup Shoutcast with Winamp - Knowledgebase",
+    "snippet": "Start streaming music in just a few minutes, using Winamp and the SHOUTcast DSP plugin. Use SHOUTcast DSP to stream to music to Icecast or SHOUTcast servers.",
+    "host_name": "client.magicstreams.services",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://19jawebhosting.com/index.php?rp=/knowledgebase/217/ShoutCast-DSP-Help.html",
+    "name": "Knowledgebase - ShoutCast DSP Help - 19jawebhosting",
+    "snippet": "SHOUTcast is a free-of-charge internet DJ solution. It allows anybody on the internet to broadcast audio from their PC to listeners across the globe.",
+    "host_name": "19jawebhosting.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.rcast.net/knowledgebase/7/How-to-connect-Winamp-plus-DSP-plugin-to-SHOUTcast.html",
+    "name": "How to connect Winamp + DSP plugin to SHOUTcast - RCAST.NET",
+    "snippet": "This guide shows you how to stream live audio from Winamp 5.x to your SHOUTcast server using the SHOUTcast DSP 2.2.3 plug-in (both SHOUTcast v2 and v1 mode).",
+    "host_name": "www.rcast.net",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://forums.winamp.com/forum/winamp/winamp-technical-support/298163-streaming-internet-radio",
+    "name": "Streaming Internet Radio - Winamp & Shoutcast Forums",
+    "snippet": "You can use NSSM.exe for shoutcast servers but the limit is 30 services in windows so I ended up using Serviceexe.exe and adding more processes ... Missing: DSP features\nI am trying to do is to build a radio server PC (probably Windows, but maybe Linux) that simply streams up to (say) 16 channels of Internet Radio to other ...",
+    "host_name": "forums.winamp.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://home.hccnet.nl/th.v.d.gronde/dev/lineinWA2/doc/shoutcast/index.html",
+    "name": "LineIn plugin for Winamp 2/5 Documentation - SHOUTcast setup",
+    "snippet": "SHOUTcast gives you the possibility of having your own internet radio station, or to receive internet radio broadcasts of course, but that's something everybody ...",
+    "host_name": "home.hccnet.nl",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.doscast.com/index.php?rp=/knowledgebase/21/How-to-Setup-Shoutcast-with-Winamp.html",
+    "name": "Knowledgebase - How to Setup Shoutcast with Winamp - DOScast",
+    "snippet": "Also, ensure you have a reliable internet connection. While broadcasting is possible with a 56k connection, DSL or Cable is recommended for optimal performance.",
+    "host_name": "www.doscast.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

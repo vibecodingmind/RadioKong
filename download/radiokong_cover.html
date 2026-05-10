@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RadioKong - Product Requirements Document</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+  @page { size: 794px 1123px; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 794px; height: 1123px; margin: 0; padding: 0; overflow: hidden; }
+  body { font-family: 'Inter', sans-serif; background: #f3f3f1; }
+
+  .cover {
+    position: relative;
+    width: 794px;
+    height: 1123px;
+    background: #f3f3f1;
+  }
+
+  /* Safe zone */
+  .safe-zone {
+    position: absolute;
+    top: 12%; bottom: 12%; left: 14%; right: 14%;
+  }
+
+  /* Geometric accents */
+  .accent-line-top {
+    position: absolute;
+    top: 8%;
+    left: 14%;
+    width: 72%;
+    height: 1px;
+    background: #5939b8;
+    opacity: 0.3;
+  }
+  .accent-line-bottom {
+    position: absolute;
+    bottom: 8%;
+    left: 14%;
+    width: 72%;
+    height: 1px;
+    background: #5939b8;
+    opacity: 0.3;
+  }
+  .accent-square {
+    position: absolute;
+    top: 18%;
+    right: 14%;
+    width: 60px;
+    height: 60px;
+    border: 2px solid #5939b8;
+    opacity: 0.15;
+  }
+  .accent-circle {
+    position: absolute;
+    bottom: 22%;
+    left: 14%;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1.5px solid #998956;
+    opacity: 0.2;
+  }
+
+  /* Kicker */
+  .kicker {
+    position: absolute;
+    top: 20%;
+    left: 14%;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #8b8982;
+  }
+
+  /* Hero title */
+  .hero {
+    position: absolute;
+    top: 28%;
+    left: 14%;
+    right: 14%;
+    font-family: 'Playfair Display', serif;
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: #21201e;
+  }
+  .hero .accent { color: #5939b8; }
+
+  /* Meta subtitle */
+  .meta {
+    position: absolute;
+    top: 55%;
+    left: 14%;
+    font-size: 20px;
+    font-weight: 400;
+    color: #21201e;
+    line-height: 1.6;
+    max-width: 60%;
+  }
+
+  /* Summary block */
+  .summary {
+    position: absolute;
+    top: 67%;
+    left: 14%;
+    right: 14%;
+    font-size: 14px;
+    font-weight: 300;
+    color: #8b8982;
+    line-height: 1.7;
+    max-width: 70%;
+    border-top: 1px solid #cfcbbe;
+    padding-top: 18px;
+  }
+
+  /* Footer */
+  .footer {
+    position: absolute;
+    bottom: 10%;
+    left: 14%;
+    right: 14%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-left {
+    font-size: 12px;
+    font-weight: 400;
+    color: #8b8982;
+    letter-spacing: 1px;
+  }
+  .footer-right {
+    font-size: 12px;
+    font-weight: 600;
+    color: #5939b8;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* Version badge */
+  .version-badge {
+    position: absolute;
+    top: 20%;
+    right: 14%;
+    display: inline-block;
+    background: #5939b8;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+  }
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="accent-line-top"></div>
+  <div class="accent-line-bottom"></div>
+  <div class="accent-square"></div>
+  <div class="accent-circle"></div>
+
+  <div class="kicker">Product Requirements Document</div>
+  <div class="version-badge">V1.0</div>
+
+  <div class="hero">
+    Radio<span class="accent">Kong</span><br/>
+    Internet Radio<br/>
+    Streaming Platform
+  </div>
+
+  <div class="meta">
+    World-Class Broadcasting Made Simple
+  </div>
+
+  <div class="summary">
+    A comprehensive product strategy and technical blueprint for RadioKong, a next-generation internet radio streaming application designed to replace legacy tools like BUTT and WinAMP with a modern, cross-platform, commercially viable solution.
+  </div>
+
+  <div class="footer">
+    <div class="footer-left">May 2026 &middot; Confidential</div>
+    <div class="footer-right">RadioKong</div>
+  </div>
+</div>
+</body>
+</html>
