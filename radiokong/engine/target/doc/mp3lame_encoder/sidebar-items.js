@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["MAX_ALBUM_ART_SIZE"],"enum":["Bitrate","BuildError","EncodeError","Id3TagError","Mode","Quality","VbrMode"],"fn":["encoder","max_required_buffer_size"],"struct":["Builder","DualPcm","Encoder","FlushGap","FlushNoGap","Id3Tag","InterleavedPcm","MonoPcm"],"trait":["EncoderFlush","EncoderInput"]};

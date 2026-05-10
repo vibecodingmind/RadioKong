@@ -1,0 +1,8 @@
+make: warning: -j4 forced in submake: resetting jobserver mode.
+ar: `u' modifier ignored since `D' is the default (see `U')
+Makefile:622: warning: ignoring prerequisites on suffix rule definition
+Makefile:619: warning: ignoring prerequisites on suffix rule definition
+Makefile:622: warning: ignoring prerequisites on suffix rule definition
+Makefile:619: warning: ignoring prerequisites on suffix rule definition
+ar: `u' modifier ignored since `D' is the default (see `U')
+ar: `u' modifier ignored since `D' is the default (see `U')

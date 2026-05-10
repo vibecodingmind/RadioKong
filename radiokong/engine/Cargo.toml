@@ -1,6 +1,6 @@
 [package]
 name = "radiokong-engine"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "RadioKong Audio Engine - Core audio capture, encoding, and streaming"
 authors = ["RadioKong Team"]
@@ -24,6 +24,13 @@ dasp = { version = "0.11", features = ["signal", "interpolate", "ring_buffer"], 
 
 # Cross-platform channel (always needed for audio pipeline)
 crossbeam-channel = "0.5"
+
+# Encoding - MP3 (LAME bindings, pure Rust via static linking)
+mp3lame-encoder = "0.2"
+
+# Encoding - OGG Vorbis (pure Rust)
+oxideav-ogg = "0.1"
+oxideav-vorbis = "0.0"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
