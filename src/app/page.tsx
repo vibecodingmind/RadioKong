@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAudioStore } from "@/lib/audio-store";
 import { useAudioEngine } from "@/lib/use-audio-engine";
 import { VuMeter } from "@/components/vu-meter";
@@ -19,7 +20,7 @@ function formatClock(): string {
 
 export default function Home() {
   const { isLive, isRecording, channels, leftLevel, rightLevel, leftPeak, rightPeak, setIsRecording, streamConnection } = useAudioStore();
-  const { startAudioCapture, stopAudioCapture, analyser } = useAudioEngine();
+  const { startAudioCapture, stopAudioCapture, startRecording, stopRecording, analyser } = useAudioEngine();
   // Start with empty string to avoid SSR/client hydration mismatch
   // (server uses UTC, client uses local timezone)
   const [clock, setClock] = useState("");
@@ -50,7 +51,11 @@ export default function Home() {
 
   const handleRecord = () => {
     if (!isLive) return;
-    setIsRecording(!isRecording);
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
   };
 
   return (
@@ -126,6 +131,14 @@ export default function Home() {
         <span suppressHydrationWarning className="text-xs font-mono text-muted-foreground ml-2">
           {mounted ? clock : "\u00A0"}
         </span>
+
+        {/* Recordings link */}
+        <Link href="/recordings" className="ml-2 text-xs text-muted-foreground hover:text-rk-purple transition-colors" title="Recordings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </Link>
       </header>
 
       {/* Mic error banner */}

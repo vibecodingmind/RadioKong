@@ -1,6 +1,7 @@
 "use client";
 
 import { useAudioStore } from "@/lib/audio-store";
+import { useAudioEngine } from "@/lib/use-audio-engine";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -9,12 +10,31 @@ import { useState } from "react";
 
 export function MetadataPanel() {
   const { metadata, setMetadata, isLive } = useAudioStore();
+  const { sendMetadata } = useAudioEngine();
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!isLive) return;
-    setSent(true);
-    setTimeout(() => setSent(false), 2000);
+    setSending(true);
+    setError(null);
+
+    try {
+      const success = await sendMetadata();
+      if (success) {
+        setSent(true);
+        setTimeout(() => setSent(false), 2000);
+      } else {
+        setError("Failed to update metadata — check server connection");
+        setTimeout(() => setError(null), 4000);
+      }
+    } catch (err: any) {
+      setError(err.message || "Metadata update failed");
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -60,10 +80,17 @@ export function MetadataPanel() {
             : "bg-rk-purple hover:bg-rk-purple/90 text-white"
         }`}
         onClick={handleSend}
-        disabled={!isLive}
+        disabled={!isLive || sending}
       >
-        {sent ? "✓ Metadata Sent" : "Send Metadata"}
+        {sending ? "Sending..." : sent ? "✓ Metadata Sent" : "Send Metadata"}
       </Button>
+
+      {/* Error display */}
+      {error && (
+        <div className="text-[10px] px-2 py-1.5 rounded-md bg-rk-red/10 text-rk-red border border-rk-red/30">
+          {error}
+        </div>
+      )}
 
       {/* Auto-update toggle */}
       <div className="flex items-center justify-between">

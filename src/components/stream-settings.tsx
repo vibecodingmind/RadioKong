@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useAudioStore } from "@/lib/audio-store";
+import { useAudioEngine } from "@/lib/use-audio-engine";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -15,6 +17,25 @@ import {
 
 export function StreamSettings() {
   const { streamConnection, setStreamConnection, streamHealth, isLive } = useAudioStore();
+  const { testConnection } = useAudioEngine();
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    const result = await testConnection();
+    setTestResult(result);
+    setTesting(false);
+  };
+
+  const handleSave = () => {
+    // Settings are auto-saved via the useAudioEngine hook
+    // This button provides explicit feedback
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <div className="flex flex-col gap-3 text-xs">
@@ -131,6 +152,40 @@ export function StreamSettings() {
         />
       </div>
 
+      {/* Test Connection */}
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full h-7 text-xs"
+        onClick={handleTestConnection}
+        disabled={testing || isLive}
+      >
+        {testing ? "Testing..." : "Test Connection"}
+      </Button>
+
+      {/* Test result */}
+      {testResult && (
+        <div
+          className={`text-[10px] px-2 py-1.5 rounded-md ${
+            testResult.success
+              ? "bg-rk-green/10 text-rk-green border border-rk-green/30"
+              : "bg-rk-red/10 text-rk-red border border-rk-red/30"
+          }`}
+        >
+          {testResult.message}
+        </div>
+      )}
+
+      {/* Save Config */}
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full h-7 text-xs"
+        onClick={handleSave}
+      >
+        {saved ? "✓ Settings Saved" : "Save Settings"}
+      </Button>
+
       {/* Connect / Disconnect */}
       <Button
         size="sm"
@@ -143,6 +198,11 @@ export function StreamSettings() {
       >
         {streamHealth.connected ? "Disconnect" : "Connect"}
       </Button>
+
+      {/* Relay server note */}
+      <p className="text-[9px] text-muted-foreground leading-relaxed">
+        Streaming requires the relay server on port 3001. Run: <code className="bg-secondary px-1 rounded">node relay-server.mjs</code>
+      </p>
     </div>
   );
 }
