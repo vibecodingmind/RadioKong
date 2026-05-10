@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
+
+@layer components {
+  /* VU Meter styles */
+  .vu-meter-bar {
+    @apply transition-all duration-75 ease-out;
+  }
+
+  .vu-meter-green {
+    @apply bg-emerald-500;
+  }
+
+  .vu-meter-yellow {
+    @apply bg-yellow-500;
+  }
+
+  .vu-meter-red {
+    @apply bg-red-500;
+  }
+
+  /* Glow effects */
+  .glow-brand {
+    box-shadow: 0 0 20px rgba(232, 72, 73, 0.3);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+  }
+
+  .glow-red {
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+  }
+
+  /* Knob / fader styles */
+  .fader-track {
+    @apply w-2 rounded-full bg-surface-700 relative;
+  }
+
+  .fader-fill {
+    @apply absolute bottom-0 left-0 right-0 rounded-full bg-brand-500 transition-all duration-75;
+  }
+
+  /* Stream status indicator */
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full;
+  }
+
+  .status-live {
+    @apply status-dot bg-emerald-500;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .status-offline {
+    @apply status-dot bg-surface-500;
+  }
+
+  .status-connecting {
+    @apply status-dot bg-yellow-500 animate-pulse;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
+    50% { opacity: 0.7; box-shadow: 0 0 16px rgba(16, 185, 129, 0.8); }
+  }
+
+  /* Drag region for frameless window */
+  .drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Glass morphism panels */
+  .glass-panel {
+    @apply bg-surface-900/80 backdrop-blur-xl border border-surface-700/50 rounded-xl;
+  }
+
+  /* Audio waveform canvas */
+  .waveform-canvas {
+    @apply w-full h-full;
+    image-rendering: pixelated;
+  }
+}
+
+@layer utilities {
+  .text-gradient-brand {
+    @apply bg-gradient-to-r from-brand-400 to-brand-600 bg-clip-text text-transparent;
+  }
+}

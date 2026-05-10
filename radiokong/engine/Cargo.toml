@@ -1,0 +1,43 @@
+[package]
+name = "radiokong-engine"
+version = "0.1.0"
+edition = "2021"
+description = "RadioKong Audio Engine - Core audio capture, encoding, and streaming"
+authors = ["RadioKong Team"]
+
+[[bin]]
+name = "radiokong-engine"
+path = "src/main.rs"
+
+[lib]
+name = "radiokong_engine"
+path = "src/lib.rs"
+
+[features]
+default = ["audio-capture"]
+audio-capture = ["cpal", "dasp"]
+
+[dependencies]
+# Audio I/O (optional - requires ALSA on Linux, CoreAudio on macOS, WASAPI on Windows)
+cpal = { version = "0.15", optional = true }
+dasp = { version = "0.11", features = ["signal", "interpolate", "ring_buffer"], optional = true }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Cross-platform
+crossbeam-channel = { version = "0.5", optional = true }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
