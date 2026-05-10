@@ -20,11 +20,16 @@ function formatClock(): string {
 export default function Home() {
   const { isLive, isRecording, channels, leftLevel, rightLevel, leftPeak, rightPeak, setIsRecording, streamConnection } = useAudioStore();
   const { startAudioCapture, stopAudioCapture, analyser } = useAudioEngine();
-  const [clock, setClock] = useState(formatClock());
+  // Start with empty string to avoid SSR/client hydration mismatch
+  // (server uses UTC, client uses local timezone)
+  const [clock, setClock] = useState("");
+  const [mounted, setMounted] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
 
-  // Clock
+  // Clock — only runs on the client after hydration
   useEffect(() => {
+    setMounted(true);
+    setClock(formatClock());
     const interval = setInterval(() => setClock(formatClock()), 1000);
     return () => clearInterval(interval);
   }, []);
@@ -117,8 +122,10 @@ export default function Home() {
           REC
         </button>
 
-        {/* Clock */}
-        <span className="text-xs font-mono text-muted-foreground ml-2">{clock}</span>
+        {/* Clock — suppressHydrationWarning avoids mismatch between server UTC and client local time */}
+        <span suppressHydrationWarning className="text-xs font-mono text-muted-foreground ml-2">
+          {mounted ? clock : "\u00A0"}
+        </span>
       </header>
 
       {/* Mic error banner */}
