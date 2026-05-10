@@ -29,4 +29,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   authLogin: (data) => ipcRenderer.invoke('auth:login', data),
   authSignup: (data) => ipcRenderer.invoke('auth:signup', data),
   authLogout: () => ipcRenderer.invoke('auth:logout'),
+
+  // File dialogs
+  showOpenDialog: (options) => ipcRenderer.invoke('dialog:open', options),
+  showSaveDialog: (options) => ipcRenderer.invoke('dialog:save', options),
+
+  // File system
+  showItemInFolder: (path) => ipcRenderer.invoke('shell:showInFolder', path),
+  openPath: (path) => ipcRenderer.invoke('shell:openPath', path),
 });

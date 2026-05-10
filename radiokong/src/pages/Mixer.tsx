@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Plus, Volume2, VolumeX } from 'lucide-react'
-import { useAppStore } from '../store'
-import { useSubscriptionStore, hasFeature } from '../store/subscription'
+import { Plus, Volume2, VolumeX, X } from 'lucide-react'
+import { useAppStore, CHANNEL_COLORS } from '../store'
+import { useSubscriptionStore, hasFeature, getTierLimit } from '../store/subscription'
 import { MixerChannel } from '../components/mixer/MixerChannel'
 import { StereoVUMeter } from '../components/audio/VUMeter'
 import { VerticalFader, RotaryKnob } from '../components/mixer/RotaryKnob'
@@ -11,6 +11,8 @@ export function Mixer() {
   const masterVolume = useAppStore((s) => s.masterVolume)
   const masterMuted = useAppStore((s) => s.masterMuted)
   const updateChannel = useAppStore((s) => s.updateChannel)
+  const addChannel = useAppStore((s) => s.addChannel)
+  const removeChannel = useAppStore((s) => s.removeChannel)
   const setMasterVolume = useAppStore((s) => s.setMasterVolume)
   const setMasterMuted = useAppStore((s) => s.setMasterMuted)
   const tier = useSubscriptionStore((s) => s.tier)
@@ -23,6 +25,41 @@ export function Mixer() {
   }
 
   const canDSP = hasFeature(tier, 'dsp')
+  const maxChannels = getTierLimit(tier, 'maxChannels')
+
+  const handleAddChannel = async () => {
+    const channelNum = mixerChannels.length + 1
+    const id = `ch-${Date.now()}`
+    const color = CHANNEL_COLORS[(mixerChannels.length) % CHANNEL_COLORS.length]
+    const newChannel = {
+      id,
+      name: `Channel ${channelNum}`,
+      volume: 0.7,
+      muted: false,
+      solo: false,
+      pan: 0,
+      color,
+      vuLevel: { left: 0, right: 0 },
+    }
+    addChannel(newChannel)
+    // Also tell the engine about the new channel
+    if (window.electronAPI) {
+      await window.electronAPI.engineCommand({
+        type: 'add_channel',
+        id,
+        name: newChannel.name,
+        volume: newChannel.volume,
+        pan: newChannel.pan,
+      })
+    }
+  }
+
+  const handleRemoveChannel = async (id: string) => {
+    removeChannel(id)
+    if (window.electronAPI) {
+      await window.electronAPI.engineCommand({ type: 'remove_channel', id })
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -35,7 +72,14 @@ export function Mixer() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 rounded-lg bg-surface-800 px-3 py-2 text-sm text-surface-300 transition-colors hover:bg-surface-700">
+          <span className="text-[11px] text-surface-500">
+            {mixerChannels.length} of {maxChannels === Infinity ? '∞' : maxChannels} channels
+          </span>
+          <button
+            onClick={handleAddChannel}
+            disabled={mixerChannels.length >= (maxChannels === Infinity ? 999 : maxChannels)}
+            className="flex items-center gap-2 rounded-lg bg-surface-800 px-3 py-2 text-sm text-surface-300 transition-colors hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
             <Plus className="h-4 w-4" />
             Add Channel
           </button>
@@ -73,11 +117,22 @@ export function Mixer() {
             <div className="flex items-end gap-4 overflow-x-auto pb-2">
               {/* Individual Channels */}
               {mixerChannels.map((channel) => (
-                <MixerChannel
-                  key={channel.id}
-                  channel={channel}
-                  onUpdate={updateChannel}
-                />
+                <div key={channel.id} className="relative group">
+                  <MixerChannel
+                    channel={channel}
+                    onUpdate={updateChannel}
+                  />
+                  {/* Remove channel button (only if more than 1 channel) */}
+                  {mixerChannels.length > 1 && (
+                    <button
+                      onClick={() => handleRemoveChannel(channel.id)}
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-surface-800 text-surface-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-600 hover:text-white"
+                      title="Remove channel"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               ))}
 
               {/* Separator */}
@@ -152,6 +207,7 @@ export function Mixer() {
 }
 
 function DSPPanel() {
+  const [eqEnabled, setEqEnabled] = useState(false)
   const [eqBands, setEqBands] = useState([
     { freq: 60, gain: 0, label: '60Hz' },
     { freq: 250, gain: 0, label: '250Hz' },
@@ -182,6 +238,78 @@ function DSPPanel() {
     release: 100,
   })
 
+  // Send DSP commands to engine
+  const sendDSPCommand = async (command: any) => {
+    if (window.electronAPI) {
+      await window.electronAPI.engineCommand(command)
+    }
+  }
+
+  const handleEQToggle = () => {
+    const newEnabled = !eqEnabled
+    setEqEnabled(newEnabled)
+    sendDSPCommand({ type: 'set_eq_enabled', enabled: newEnabled })
+  }
+
+  const handleEQBandChange = (index: number, gain: number) => {
+    const newBands = [...eqBands]
+    newBands[index].gain = gain
+    setEqBands(newBands)
+    sendDSPCommand({ type: 'set_eq_band', band_index: index, gain_db: gain })
+  }
+
+  const handleCompressorToggle = () => {
+    const newEnabled = !compressor.enabled
+    setCompressor((c) => ({ ...c, enabled: newEnabled }))
+    sendDSPCommand({ type: 'set_compressor', enabled: newEnabled })
+  }
+
+  const handleCompressorChange = (field: string, value: number) => {
+    setCompressor((c) => ({ ...c, [field]: value }))
+    const cmd: any = { type: 'set_compressor' }
+    switch (field) {
+      case 'threshold': cmd.threshold_db = value; break
+      case 'ratio': cmd.ratio = value; break
+      case 'attack': cmd.attack_ms = value; break
+      case 'release': cmd.release_ms = value; break
+      case 'gain': cmd.makeup_gain_db = value; break
+    }
+    sendDSPCommand(cmd)
+  }
+
+  const handleLimiterToggle = () => {
+    const newEnabled = !limiter.enabled
+    setLimiter((l) => ({ ...l, enabled: newEnabled }))
+    sendDSPCommand({ type: 'set_limiter', enabled: newEnabled })
+  }
+
+  const handleLimiterChange = (field: string, value: number) => {
+    setLimiter((l) => ({ ...l, [field]: value }))
+    const cmd: any = { type: 'set_limiter' }
+    switch (field) {
+      case 'ceiling': cmd.ceiling_db = value; break
+      case 'release': cmd.release_ms = value; break
+    }
+    sendDSPCommand(cmd)
+  }
+
+  const handleGateToggle = () => {
+    const newEnabled = !gate.enabled
+    setGate((g) => ({ ...g, enabled: newEnabled }))
+    sendDSPCommand({ type: 'set_gate', enabled: newEnabled })
+  }
+
+  const handleGateChange = (field: string, value: number) => {
+    setGate((g) => ({ ...g, [field]: value }))
+    const cmd: any = { type: 'set_gate' }
+    switch (field) {
+      case 'threshold': cmd.threshold_db = value; break
+      case 'attack': cmd.attack_ms = value; break
+      case 'release': cmd.release_ms = value; break
+    }
+    sendDSPCommand(cmd)
+  }
+
   return (
     <div className="grid grid-cols-2 gap-6">
       {/* EQ */}
@@ -190,12 +318,16 @@ function DSPPanel() {
           <h3 className="text-sm font-semibold uppercase tracking-wider text-surface-400">
             Equalizer
           </h3>
-          <label className="flex cursor-pointer items-center gap-2">
-            <span className="text-[11px] text-surface-400">Enabled</span>
-            <div className="relative h-5 w-9 rounded-full bg-surface-700">
-              <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-surface-400 transition-transform" />
-            </div>
-          </label>
+          <button
+            onClick={handleEQToggle}
+            className={`rounded px-2 py-1 text-[10px] font-bold ${
+              eqEnabled
+                ? 'bg-emerald-600 text-white'
+                : 'bg-surface-700 text-surface-400'
+            }`}
+          >
+            {eqEnabled ? 'ON' : 'OFF'}
+          </button>
         </div>
         <div className="flex items-end justify-between gap-4 px-4">
           {eqBands.map((band, i) => (
@@ -208,11 +340,7 @@ function DSPPanel() {
                 size={44}
                 unit="dB"
                 color={band.gain > 0 ? '#10b981' : band.gain < 0 ? '#ef4444' : '#3b82f6'}
-                onChange={(v) => {
-                  const newBands = [...eqBands]
-                  newBands[i].gain = v
-                  setEqBands(newBands)
-                }}
+                onChange={(v) => handleEQBandChange(i, v)}
               />
               <span className="text-[10px] text-surface-400">{band.label}</span>
             </div>
@@ -227,7 +355,7 @@ function DSPPanel() {
             Compressor
           </h3>
           <button
-            onClick={() => setCompressor((c) => ({ ...c, enabled: !c.enabled }))}
+            onClick={handleCompressorToggle}
             className={`rounded px-2 py-1 text-[10px] font-bold ${
               compressor.enabled
                 ? 'bg-blue-600 text-white'
@@ -247,7 +375,7 @@ function DSPPanel() {
             step={1}
             size={52}
             color="#3b82f6"
-            onChange={(v) => setCompressor((c) => ({ ...c, threshold: v }))}
+            onChange={(v) => handleCompressorChange('threshold', v)}
           />
           <RotaryKnob
             label="Ratio"
@@ -258,7 +386,7 @@ function DSPPanel() {
             step={0.5}
             size={52}
             color="#3b82f6"
-            onChange={(v) => setCompressor((c) => ({ ...c, ratio: v }))}
+            onChange={(v) => handleCompressorChange('ratio', v)}
           />
           <RotaryKnob
             label="Gain"
@@ -269,7 +397,7 @@ function DSPPanel() {
             step={0.5}
             size={52}
             color="#10b981"
-            onChange={(v) => setCompressor((c) => ({ ...c, gain: v }))}
+            onChange={(v) => handleCompressorChange('gain', v)}
           />
           <RotaryKnob
             label="Attack"
@@ -280,7 +408,7 @@ function DSPPanel() {
             step={0.1}
             size={52}
             color="#f59e0b"
-            onChange={(v) => setCompressor((c) => ({ ...c, attack: v }))}
+            onChange={(v) => handleCompressorChange('attack', v)}
           />
           <RotaryKnob
             label="Release"
@@ -291,7 +419,7 @@ function DSPPanel() {
             step={10}
             size={52}
             color="#f59e0b"
-            onChange={(v) => setCompressor((c) => ({ ...c, release: v }))}
+            onChange={(v) => handleCompressorChange('release', v)}
           />
         </div>
       </div>
@@ -303,7 +431,7 @@ function DSPPanel() {
             Limiter
           </h3>
           <button
-            onClick={() => setLimiter((l) => ({ ...l, enabled: !l.enabled }))}
+            onClick={handleLimiterToggle}
             className={`rounded px-2 py-1 text-[10px] font-bold ${
               limiter.enabled
                 ? 'bg-red-600 text-white'
@@ -323,7 +451,7 @@ function DSPPanel() {
             step={0.5}
             size={60}
             color="#ef4444"
-            onChange={(v) => setLimiter((l) => ({ ...l, ceiling: v }))}
+            onChange={(v) => handleLimiterChange('ceiling', v)}
           />
           <RotaryKnob
             label="Release"
@@ -334,7 +462,7 @@ function DSPPanel() {
             step={1}
             size={60}
             color="#f59e0b"
-            onChange={(v) => setLimiter((l) => ({ ...l, release: v }))}
+            onChange={(v) => handleLimiterChange('release', v)}
           />
         </div>
       </div>
@@ -346,7 +474,7 @@ function DSPPanel() {
             Noise Gate
           </h3>
           <button
-            onClick={() => setGate((g) => ({ ...g, enabled: !g.enabled }))}
+            onClick={handleGateToggle}
             className={`rounded px-2 py-1 text-[10px] font-bold ${
               gate.enabled
                 ? 'bg-purple-600 text-white'
@@ -366,7 +494,7 @@ function DSPPanel() {
             step={1}
             size={60}
             color="#8b5cf6"
-            onChange={(v) => setGate((g) => ({ ...g, threshold: v }))}
+            onChange={(v) => handleGateChange('threshold', v)}
           />
           <RotaryKnob
             label="Attack"
@@ -377,7 +505,7 @@ function DSPPanel() {
             step={0.1}
             size={60}
             color="#f59e0b"
-            onChange={(v) => setGate((g) => ({ ...g, attack: v }))}
+            onChange={(v) => handleGateChange('attack', v)}
           />
           <RotaryKnob
             label="Release"
@@ -388,7 +516,7 @@ function DSPPanel() {
             step={10}
             size={60}
             color="#f59e0b"
-            onChange={(v) => setGate((g) => ({ ...g, release: v }))}
+            onChange={(v) => handleGateChange('release', v)}
           />
         </div>
       </div>

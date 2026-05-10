@@ -20,6 +20,8 @@ import {
   Network,
   Lock,
   Building2,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
 import { useAppStore } from '../store'
 import { PLANS, useSubscriptionStore, getTierLimit } from '../store/subscription'
@@ -89,6 +91,50 @@ function ServerSettings() {
   const subscriptionTier = useSubscriptionStore((s) => s.tier)
   const canMultiServer = subscriptionTier !== 'free'
   const maxServers = getTierLimit(subscriptionTier, 'maxServers')
+  const testConnectionResult = useAppStore((s) => s.testConnectionResult)
+  const isTestingConnection = useAppStore((s) => s.isTestingConnection)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const handleTestConnection = async () => {
+    if (!window.electronAPI) return
+    useAppStore.getState().setTestingConnection(true)
+    useAppStore.getState().setTestConnectionResult(null)
+    try {
+      await window.electronAPI.engineCommand({
+        type: 'test_connection',
+        config: serverConfig,
+      })
+    } catch (err) {
+      console.error('Test connection failed:', err)
+      useAppStore.getState().setTestingConnection(false)
+    }
+  }
+
+  const handleSaveConfig = async () => {
+    if (!window.electronAPI) return
+    setSaveStatus('saving')
+    try {
+      const result = await window.electronAPI.showSaveDialog({
+        title: 'Save RadioKong Configuration',
+        defaultPath: 'radiokong-config.json',
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      })
+      if (result && !result.canceled && result.filePath) {
+        await window.electronAPI.engineCommand({
+          type: 'save_config',
+          path: result.filePath,
+        })
+        setSaveStatus('saved')
+        setTimeout(() => setSaveStatus('idle'), 3000)
+      } else {
+        setSaveStatus('idle')
+      }
+    } catch (err) {
+      console.error('Save config failed:', err)
+      setSaveStatus('error')
+      setTimeout(() => setSaveStatus('idle'), 3000)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -186,15 +232,66 @@ function ServerSettings() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-500">
-              <Save className="h-4 w-4" />
-              Save Configuration
+            <button
+              onClick={handleSaveConfig}
+              disabled={saveStatus === 'saving'}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                saveStatus === 'saved'
+                  ? 'bg-emerald-600 text-white'
+                  : saveStatus === 'error'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-brand-600 text-white hover:bg-brand-500'
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              {saveStatus === 'saving' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : saveStatus === 'saved' ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Configuration'}
             </button>
-            <button className="flex items-center gap-2 rounded-lg bg-surface-800 px-4 py-2.5 text-sm font-medium text-surface-300 transition-colors hover:bg-surface-700">
-              <RotateCcw className="h-4 w-4" />
-              Test Connection
+            <button
+              onClick={handleTestConnection}
+              disabled={isTestingConnection || !serverConfig.host}
+              className="flex items-center gap-2 rounded-lg bg-surface-800 px-4 py-2.5 text-sm font-medium text-surface-300 transition-colors hover:bg-surface-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isTestingConnection ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              {isTestingConnection ? 'Testing...' : 'Test Connection'}
             </button>
           </div>
+
+          {/* Test Connection Result */}
+          {testConnectionResult && (
+            <div className={`rounded-lg border p-3 ${
+              testConnectionResult.success
+                ? 'border-emerald-500/30 bg-emerald-500/10'
+                : 'border-red-500/30 bg-red-500/10'
+            }`}>
+              <div className="flex items-center gap-2">
+                {testConnectionResult.success ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-red-400" />
+                )}
+                <span className={`text-sm font-medium ${
+                  testConnectionResult.success ? 'text-emerald-400' : 'text-red-400'
+                }`}>
+                  {testConnectionResult.message}
+                </span>
+                {testConnectionResult.server_type && (
+                  <span className="rounded bg-surface-800 px-2 py-0.5 text-[10px] text-surface-400">
+                    {testConnectionResult.server_type}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

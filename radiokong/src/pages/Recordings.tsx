@@ -7,6 +7,7 @@ import {
   Download,
   Clock,
   FileAudio,
+  FolderOpen,
 } from 'lucide-react'
 import { useAppStore } from '../store'
 
@@ -14,6 +15,12 @@ export function Recordings() {
   const isRecording = useAppStore((s) => s.isRecording)
   const recordings = useAppStore((s) => s.recordings)
   const setRecording = useAppStore((s) => s.setRecording)
+  const removeRecording = (id: string) => {
+    // Remove from store - in a full app, also delete the file
+    useAppStore.setState((state) => ({
+      recordings: state.recordings.filter((r) => r.id !== id),
+    }))
+  }
 
   const [recordPath, setRecordPath] = useState('~/Recordings/RadioKong')
   const [recordFormat, setRecordFormat] = useState<'wav' | 'mp3' | 'flac'>('wav')
@@ -28,6 +35,40 @@ export function Recordings() {
         path: recordPath,
       })
       setRecording(true)
+    }
+  }
+
+  const handleBrowse = async () => {
+    if (!window.electronAPI?.showOpenDialog) return
+    try {
+      const result = await window.electronAPI.showOpenDialog({
+        title: 'Select Recording Location',
+        properties: ['openDirectory', 'createDirectory'],
+        buttonLabel: 'Select Folder',
+      })
+      if (result && !result.canceled && result.filePaths.length > 0) {
+        setRecordPath(result.filePaths[0])
+      }
+    } catch (err) {
+      console.error('Browse dialog failed:', err)
+    }
+  }
+
+  const handlePlay = async (rec: any) => {
+    if (!window.electronAPI?.openPath) return
+    try {
+      await window.electronAPI.openPath(rec.path)
+    } catch (err) {
+      console.error('Failed to play recording:', err)
+    }
+  }
+
+  const handleShowInFolder = async (rec: any) => {
+    if (!window.electronAPI?.showItemInFolder) return
+    try {
+      await window.electronAPI.showItemInFolder(rec.path)
+    } catch (err) {
+      console.error('Failed to show in folder:', err)
     }
   }
 
@@ -95,7 +136,11 @@ export function Recordings() {
                     onChange={(e) => setRecordPath(e.target.value)}
                     className="flex-1 rounded-lg border border-surface-700 bg-surface-800 px-3 py-2 text-sm text-white placeholder-surface-500 outline-none focus:border-brand-500"
                   />
-                  <button className="rounded-lg bg-surface-700 px-3 py-2 text-sm text-surface-300 hover:bg-surface-600">
+                  <button
+                    onClick={handleBrowse}
+                    className="flex items-center gap-1.5 rounded-lg bg-surface-700 px-3 py-2 text-sm text-surface-300 hover:bg-surface-600"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
                     Browse
                   </button>
                 </div>
@@ -131,7 +176,7 @@ export function Recordings() {
               Recording Library
             </h3>
             <span className="text-[11px] text-surface-500">
-              {recordings.length} recordings
+              {recordings.length} recording{recordings.length !== 1 ? 's' : ''}
             </span>
           </div>
 
@@ -146,7 +191,13 @@ export function Recordings() {
           ) : (
             <div className="space-y-2">
               {recordings.map((rec) => (
-                <RecordingItem key={rec.id} recording={rec} />
+                <RecordingItem
+                  key={rec.id}
+                  recording={rec}
+                  onPlay={handlePlay}
+                  onShowInFolder={handleShowInFolder}
+                  onDelete={removeRecording}
+                />
               ))}
             </div>
           )}
@@ -156,7 +207,17 @@ export function Recordings() {
   )
 }
 
-function RecordingItem({ recording }: { recording: any }) {
+function RecordingItem({
+  recording,
+  onPlay,
+  onShowInFolder,
+  onDelete,
+}: {
+  recording: any
+  onPlay: (rec: any) => void
+  onShowInFolder: (rec: any) => void
+  onDelete: (id: string) => void
+}) {
   return (
     <div className="flex items-center gap-4 rounded-lg border border-surface-700/50 bg-surface-800/50 p-4">
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
@@ -173,13 +234,25 @@ function RecordingItem({ recording }: { recording: any }) {
         {formatDuration(recording.duration)}
       </div>
       <div className="flex items-center gap-1">
-        <button className="rounded p-1.5 text-surface-400 transition-colors hover:bg-surface-700 hover:text-surface-200">
+        <button
+          onClick={() => onPlay(recording)}
+          className="rounded p-1.5 text-surface-400 transition-colors hover:bg-emerald-600/20 hover:text-emerald-400"
+          title="Play with system player"
+        >
           <Play className="h-4 w-4" />
         </button>
-        <button className="rounded p-1.5 text-surface-400 transition-colors hover:bg-surface-700 hover:text-surface-200">
+        <button
+          onClick={() => onShowInFolder(recording)}
+          className="rounded p-1.5 text-surface-400 transition-colors hover:bg-blue-600/20 hover:text-blue-400"
+          title="Show in folder"
+        >
           <Download className="h-4 w-4" />
         </button>
-        <button className="rounded p-1.5 text-surface-400 transition-colors hover:bg-red-600/20 hover:text-red-400">
+        <button
+          onClick={() => onDelete(recording.id)}
+          className="rounded p-1.5 text-surface-400 transition-colors hover:bg-red-600/20 hover:text-red-400"
+          title="Delete recording"
+        >
           <Trash2 className="h-4 w-4" />
         </button>
       </div>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -389,6 +389,39 @@ ipcMain.handle('auth:signup', async (_event, data) => {
 // Auth - Logout
 ipcMain.handle('auth:logout', async () => {
   return { status: 'ok' };
+});
+
+// File dialogs
+ipcMain.handle('dialog:open', async (_event, options) => {
+  if (!mainWindow) return { canceled: true, filePaths: [] };
+  const result = await dialog.showOpenDialog(mainWindow, options || {});
+  return result;
+});
+
+ipcMain.handle('dialog:save', async (_event, options) => {
+  if (!mainWindow) return { canceled: true, filePath: '' };
+  const result = await dialog.showSaveDialog(mainWindow, options || {});
+  return result;
+});
+
+// Shell - Show file in folder
+ipcMain.handle('shell:showInFolder', async (_event, filePath) => {
+  try {
+    await shell.showItemInFolder(filePath);
+    return { status: 'ok' };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+});
+
+// Shell - Open path (file/URL)
+ipcMain.handle('shell:openPath', async (_event, filePath) => {
+  try {
+    await shell.openPath(filePath);
+    return { status: 'ok' };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
 });
 
 // App lifecycle

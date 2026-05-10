@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react'
 
 interface WaveformDisplayProps {
-  data: Float32Array | null
+  data: Float32Array | number[] | null
   width?: number
   height?: number
   color?: string
@@ -44,7 +44,10 @@ export function WaveformDisplay({
       return
     }
 
-    const sliceWidth = width / data.length
+    // Convert to Float32Array if needed
+    const samples = data instanceof Float32Array ? data : new Float32Array(data)
+
+    const sliceWidth = width / samples.length
     const midY = height / 2
 
     // Draw waveform
@@ -52,9 +55,9 @@ export function WaveformDisplay({
     ctx.lineWidth = 1.5
     ctx.beginPath()
 
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 0; i < samples.length; i++) {
       const x = i * sliceWidth
-      const y = midY + data[i] * midY
+      const y = midY + samples[i] * midY
 
       if (i === 0) {
         ctx.moveTo(x, y)

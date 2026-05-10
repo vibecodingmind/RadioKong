@@ -320,7 +320,7 @@ export function LiveStream() {
             <div className="flex items-end gap-6">
               <div className="flex-1">
                 <WaveformDisplay
-                  data={null}
+                  data={useAppStore((s) => s.waveformData) ? new Float32Array(useAppStore.getState().waveformData!) : null}
                   width={500}
                   height={100}
                   color={isStreaming ? '#10b981' : '#64748b'}

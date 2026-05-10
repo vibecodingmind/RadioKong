@@ -146,6 +146,32 @@ pub enum EngineMessage {
         message: String,
         code: Option<String>,
     },
+    /// Waveform data for display
+    #[serde(rename = "waveform")]
+    Waveform {
+        samples: Vec<f32>,
+    },
+    /// Test connection result
+    #[serde(rename = "test_connection_result")]
+    TestConnectionResult {
+        success: bool,
+        message: String,
+        server_type: Option<String>,
+    },
+    /// Configuration saved/loaded
+    #[serde(rename = "config_result")]
+    ConfigResult {
+        success: bool,
+        message: String,
+        config: Option<EngineConfig>,
+    },
+    /// Recording stopped with file info
+    #[serde(rename = "recording_stopped")]
+    RecordingStopped {
+        path: String,
+        duration_secs: f64,
+        file_size_bytes: u64,
+    },
 }
 
 /// VU meter data for a single channel
@@ -193,7 +219,7 @@ pub enum EngineCommand {
     /// Add a secondary streaming server (multi-output)
     #[serde(rename = "add_server")]
     AddServer { config: ServerConfig },
-    /// Remove a secondary streaming server by host:port
+    /// Remove a secondary streaming server by ID
     #[serde(rename = "remove_server")]
     RemoveServer { id: String },
     /// Set the output (monitor) device
@@ -202,4 +228,61 @@ pub enum EngineCommand {
     /// Enable or disable auto-reconnect
     #[serde(rename = "set_auto_reconnect")]
     SetAutoReconnect { enabled: bool, max_attempts: u32, interval_secs: u64 },
+    /// Test connection to a server without starting the full pipeline
+    #[serde(rename = "test_connection")]
+    TestConnection { config: ServerConfig },
+    /// Save current configuration
+    #[serde(rename = "save_config")]
+    SaveConfig { path: String },
+    /// Load configuration from file
+    #[serde(rename = "load_config")]
+    LoadConfig { path: String },
+
+    // ---- DSP Commands ----
+    /// Set EQ band gain
+    #[serde(rename = "set_eq_band")]
+    SetEQBand { band_index: usize, gain_db: f32 },
+    /// Enable or disable EQ
+    #[serde(rename = "set_eq_enabled")]
+    SetEQEnabled { enabled: bool },
+    /// Set compressor parameters
+    #[serde(rename = "set_compressor")]
+    SetCompressor {
+        enabled: Option<bool>,
+        threshold_db: Option<f32>,
+        ratio: Option<f32>,
+        attack_ms: Option<f32>,
+        release_ms: Option<f32>,
+        makeup_gain_db: Option<f32>,
+    },
+    /// Set limiter parameters
+    #[serde(rename = "set_limiter")]
+    SetLimiter {
+        enabled: Option<bool>,
+        ceiling_db: Option<f32>,
+        release_ms: Option<f32>,
+    },
+    /// Set noise gate parameters
+    #[serde(rename = "set_gate")]
+    SetGate {
+        enabled: Option<bool>,
+        threshold_db: Option<f32>,
+        attack_ms: Option<f32>,
+        release_ms: Option<f32>,
+        hold_ms: Option<f32>,
+    },
+
+    // ---- Mixer Commands ----
+    /// Add a new mixer channel
+    #[serde(rename = "add_channel")]
+    AddChannel { id: String, name: String, volume: f32, pan: f32 },
+    /// Remove a mixer channel
+    #[serde(rename = "remove_channel")]
+    RemoveChannel { id: String },
+    /// Set channel pan
+    #[serde(rename = "set_pan")]
+    SetPan { channel: String, pan: f32 },
+    /// Set channel input device
+    #[serde(rename = "set_channel_device")]
+    SetChannelDevice { channel: String, device: String },
 }

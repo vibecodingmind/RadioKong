@@ -188,6 +188,40 @@ impl Mixer {
             .map(|ch| (ch.vu_level.0, ch.vu_level.1, ch.vu_peak.0, ch.vu_peak.1))
             .collect()
     }
+
+    /// Set channel pan (-1.0 to 1.0)
+    pub fn set_pan(&mut self, channel_id: &str, pan: f32) {
+        if let Some(ch) = self.channels.iter_mut().find(|ch| ch.id == channel_id) {
+            ch.pan = pan.clamp(-1.0, 1.0);
+        }
+    }
+
+    /// Set channel input device
+    pub fn set_device(&mut self, channel_id: &str, device: &str) {
+        if let Some(ch) = self.channels.iter_mut().find(|ch| ch.id == channel_id) {
+            ch.device = Some(device.to_string());
+        }
+    }
+
+    /// Add a new channel to the mixer
+    pub fn add_channel(&mut self, id: String, name: String, volume: f32, pan: f32) {
+        self.channels.push(MixerChannel {
+            id,
+            name,
+            volume: volume.clamp(0.0, 1.0),
+            muted: false,
+            solo: false,
+            pan: pan.clamp(-1.0, 1.0),
+            device: None,
+            vu_level: (0.0, 0.0),
+            vu_peak: (0.0, 0.0),
+        });
+    }
+
+    /// Remove a channel from the mixer by ID
+    pub fn remove_channel(&mut self, channel_id: &str) {
+        self.channels.retain(|ch| ch.id != channel_id);
+    }
 }
 
 /// Calculate left/right gain values based on pan position

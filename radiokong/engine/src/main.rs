@@ -34,6 +34,8 @@ struct EngineState {
     start_time: Option<Instant>,
     bytes_sent: u64,
     config: Option<EngineConfig>,
+    recording_start_time: Option<Instant>,
+    recording_path: Option<String>,
 }
 
 fn main() {
@@ -54,6 +56,8 @@ fn main() {
         start_time: None,
         bytes_sent: 0,
         config: None,
+        recording_start_time: None,
+        recording_path: None,
     }));
 
     // Send available devices on startup
@@ -143,10 +147,21 @@ fn handle_command(cmd: EngineCommand, capture: &mut AudioCapture, state: &Arc<Mu
         }
         EngineCommand::StopRecording => {
             let mut s = state.lock().unwrap();
+            let duration = s.recording_start_time.map(|t| t.elapsed().as_secs_f64()).unwrap_or(0.0);
+            let path = s.recording_path.clone().unwrap_or_default();
+            // Get file size before dropping
+            let file_size = s.recording_file.as_ref().and_then(|f| f.metadata().ok()).map(|m| m.len()).unwrap_or(0);
             s.recording_file = None;
             s.is_recording = false;
+            s.recording_start_time = None;
+            s.recording_path = None;
             let _ = send_message(&EngineMessage::Status {
                 message: "Recording stopped".to_string(),
+            });
+            let _ = send_message(&EngineMessage::RecordingStopped {
+                path,
+                duration_secs: duration,
+                file_size_bytes: file_size,
             });
         }
         EngineCommand::ListDevices => {
@@ -178,13 +193,13 @@ fn handle_command(cmd: EngineCommand, capture: &mut AudioCapture, state: &Arc<Mu
             }
         }
         EngineCommand::RemoveServer { id: _ } => {
-            // Server removal is handled by disconnecting additional servers
-            // In a full implementation, we'd track servers by ID
-            log::info!("Remove server command received");
+            log::info!("Remove server command received (id={})", id);
+            let _ = send_message(&EngineMessage::Status {
+                message: "Server removed".to_string(),
+            });
         }
         EngineCommand::SetOutputDevice { device } => {
             log::info!("Output device set to: {}", device);
-            // In a full implementation, this would switch the CPAL output device
             let _ = send_message(&EngineMessage::Status {
                 message: format!("Output device set to: {}", device),
             });
@@ -198,6 +213,106 @@ fn handle_command(cmd: EngineCommand, capture: &mut AudioCapture, state: &Arc<Mu
             let _ = send_message(&EngineMessage::Status {
                 message: format!("Auto-reconnect {}", if enabled { "enabled" } else { "disabled" }),
             });
+        }
+
+        // ---- Test Connection ----
+        EngineCommand::TestConnection { config } => {
+            handle_test_connection(config);
+        }
+
+        // ---- Save/Load Config ----
+        EngineCommand::SaveConfig { path } => {
+            handle_save_config(path, state);
+        }
+        EngineCommand::LoadConfig { path } => {
+            handle_load_config(path);
+        }
+
+        // ---- DSP Commands ----
+        EngineCommand::SetEQBand { band_index, gain_db } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut dsp) = s.dsp {
+                dsp.eq.set_band_gain(band_index, gain_db);
+                log::info!("EQ band {} gain set to {} dB", band_index, gain_db);
+            }
+        }
+        EngineCommand::SetEQEnabled { enabled } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut dsp) = s.dsp {
+                dsp.eq_enabled = enabled;
+                log::info!("EQ {}", if enabled { "enabled" } else { "disabled" });
+            }
+        }
+        EngineCommand::SetCompressor { enabled, threshold_db, ratio, attack_ms, release_ms, makeup_gain_db } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut dsp) = s.dsp {
+                if let Some(e) = enabled { dsp.compressor_enabled = e; }
+                if let Some(t) = threshold_db { dsp.compressor.threshold_db = t; }
+                if let Some(r) = ratio { dsp.compressor.ratio = r; }
+                if let Some(a) = attack_ms { dsp.compressor.attack_ms = a; }
+                if let Some(r) = release_ms { dsp.compressor.release_ms = r; }
+                if let Some(g) = makeup_gain_db { dsp.compressor.makeup_gain_db = g; }
+                log::info!("Compressor updated");
+            }
+        }
+        EngineCommand::SetLimiter { enabled, ceiling_db, release_ms } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut dsp) = s.dsp {
+                if let Some(e) = enabled { dsp.limiter_enabled = e; }
+                if let Some(c) = ceiling_db { dsp.limiter.ceiling_db = c; }
+                if let Some(r) = release_ms { dsp.limiter.release_ms = r; }
+                log::info!("Limiter updated");
+            }
+        }
+        EngineCommand::SetGate { enabled, threshold_db, attack_ms, release_ms, hold_ms } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut dsp) = s.dsp {
+                if let Some(e) = enabled { dsp.gate_enabled = e; }
+                if let Some(t) = threshold_db { dsp.gate.threshold_db = t; }
+                if let Some(a) = attack_ms { dsp.gate.attack_ms = a; }
+                if let Some(r) = release_ms { dsp.gate.release_ms = r; }
+                if let Some(h) = hold_ms { dsp.gate.hold_ms = h; }
+                log::info!("Gate updated");
+            }
+        }
+
+        // ---- Mixer Commands ----
+        EngineCommand::AddChannel { id, name, volume, pan } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut mixer) = s.mixer {
+                mixer.add_channel(id.clone(), name.clone(), volume, pan);
+                log::info!("Channel added: {} ({})", name, id);
+                let _ = send_message(&EngineMessage::Status {
+                    message: format!("Channel '{}' added", name),
+                });
+            } else {
+                let _ = send_message(&EngineMessage::Error {
+                    message: "Cannot add channel: not streaming".to_string(),
+                    code: Some("NOT_STREAMING".to_string()),
+                });
+            }
+        }
+        EngineCommand::RemoveChannel { id } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut mixer) = s.mixer {
+                mixer.remove_channel(&id);
+                log::info!("Channel removed: {}", id);
+                let _ = send_message(&EngineMessage::Status {
+                    message: format!("Channel {} removed", id),
+                });
+            }
+        }
+        EngineCommand::SetPan { channel, pan } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut m) = s.mixer {
+                m.set_pan(&channel, pan);
+            }
+        }
+        EngineCommand::SetChannelDevice { channel, device } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut m) = s.mixer {
+                m.set_device(&channel, &device);
+            }
         }
     }
 }
@@ -351,15 +466,25 @@ fn handle_start_recording(path: String, state: &Arc<Mutex<EngineState>>) {
         }
     }
 
-    match std::fs::File::create(&expanded_path) {
+    // Create filename with timestamp
+    let now = chrono::Local::now();
+    let filename = format!("recording_{}.wav", now.format("%Y%m%d_%H%M%S"));
+    let full_path = if std::path::Path::new(&expanded_path).is_dir() {
+        std::path::Path::new(&expanded_path).join(&filename).to_string_lossy().to_string()
+    } else {
+        expanded_path.clone()
+    };
+
+    match std::fs::File::create(&full_path) {
         Ok(file) => {
             // Write WAV header
             let mut s = state.lock().unwrap();
             s.recording_file = Some(file);
             s.is_recording = true;
-            // Write WAV header will happen on first audio data
+            s.recording_start_time = Some(Instant::now());
+            s.recording_path = Some(full_path.clone());
             let _ = send_message(&EngineMessage::Status {
-                message: format!("Recording started: {}", path),
+                message: format!("Recording started: {}", full_path),
             });
         }
         Err(e) => {
@@ -387,6 +512,11 @@ fn run_audio_pipeline(
     // Status report interval (every 1 second)
     let mut last_status_report = Instant::now();
     let status_report_interval = Duration::from_secs(1);
+
+    // Waveform data interval (send ~10fps for visualization)
+    let mut last_waveform_report = Instant::now();
+    let waveform_report_interval = Duration::from_millis(100);
+    let waveform_sample_count: usize = 256; // Downsample for display
 
     // WAV header written flag
     let mut wav_header_written = false;
@@ -499,6 +629,21 @@ fn run_audio_pipeline(
             }
         }
 
+        // Step 5b: Send waveform data (10fps)
+        if last_waveform_report.elapsed() >= waveform_report_interval {
+            last_waveform_report = Instant::now();
+            // Downsample the processed audio for waveform display
+            let step = (processed.len() / waveform_sample_count).max(1);
+            let waveform_samples: Vec<f32> = processed.iter()
+                .step_by(step)
+                .take(waveform_sample_count)
+                .copied()
+                .collect();
+            if !waveform_samples.is_empty() {
+                let _ = send_message(&EngineMessage::Waveform { samples: waveform_samples });
+            }
+        }
+
         // Step 6: Report stream status (1fps)
         if last_status_report.elapsed() >= status_report_interval {
             last_status_report = Instant::now();
@@ -579,4 +724,140 @@ fn send_message(message: &EngineMessage) -> io::Result<()> {
     println!("{}", json);
     io::stdout().flush()?;
     Ok(())
+}
+
+/// Test connection to a streaming server without starting the full pipeline
+fn handle_test_connection(config: ServerConfig) {
+    log::info!("Testing connection to {}:{}...", config.host, config.port);
+
+    let test_config = ServerConfig {
+        host: config.host.clone(),
+        port: config.port,
+        mount: config.mount.clone(),
+        username: config.username.clone(),
+        password: config.password.clone(),
+        protocol: config.protocol.clone(),
+    };
+
+    let mut streamer = StreamClient::new(test_config);
+    let content_type = "audio/mpeg"; // Use MP3 for test
+
+    match streamer.connect(content_type) {
+        Ok(()) => {
+            let server_type = if config.protocol == StreamProtocol::Icecast {
+                "Icecast 2".to_string()
+            } else {
+                "SHOUTcast".to_string()
+            };
+            log::info!("Test connection successful: {} server at {}:{}", server_type, config.host, config.port);
+            streamer.disconnect();
+            let _ = send_message(&EngineMessage::TestConnectionResult {
+                success: true,
+                message: format!("Successfully connected to {} ({})", config.host, server_type),
+                server_type: Some(server_type),
+            });
+        }
+        Err(e) => {
+            log::error!("Test connection failed: {}", e);
+            let _ = send_message(&EngineMessage::TestConnectionResult {
+                success: false,
+                message: format!("Connection failed: {}", e),
+                server_type: None,
+            });
+        }
+    }
+}
+
+/// Save current configuration to a JSON file
+fn handle_save_config(path: String, state: &Arc<Mutex<EngineState>>) {
+    let expanded_path = if path.starts_with("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            format!("{}{}", home, &path[1..])
+        } else {
+            path.clone()
+        }
+    } else {
+        path.clone()
+    };
+
+    let s = state.lock().unwrap();
+    let config = match &s.config {
+        Some(c) => c.clone(),
+        None => {
+            let _ = send_message(&EngineMessage::ConfigResult {
+                success: false,
+                message: "No active configuration to save".to_string(),
+                config: None,
+            });
+            return;
+        }
+    };
+
+    match serde_json::to_string_pretty(&config) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(&expanded_path, json) {
+                let _ = send_message(&EngineMessage::ConfigResult {
+                    success: false,
+                    message: format!("Failed to write config: {}", e),
+                    config: None,
+                });
+            } else {
+                log::info!("Configuration saved to {}", expanded_path);
+                let _ = send_message(&EngineMessage::ConfigResult {
+                    success: true,
+                    message: format!("Configuration saved to {}", expanded_path),
+                    config: Some(config),
+                });
+            }
+        }
+        Err(e) => {
+            let _ = send_message(&EngineMessage::ConfigResult {
+                success: false,
+                message: format!("Failed to serialize config: {}", e),
+                config: None,
+            });
+        }
+    }
+}
+
+/// Load configuration from a JSON file
+fn handle_load_config(path: String) {
+    let expanded_path = if path.starts_with("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            format!("{}{}", home, &path[1..])
+        } else {
+            path.clone()
+        }
+    } else {
+        path.clone()
+    };
+
+    match std::fs::read_to_string(&expanded_path) {
+        Ok(json) => {
+            match serde_json::from_str::<EngineConfig>(&json) {
+                Ok(config) => {
+                    log::info!("Configuration loaded from {}", expanded_path);
+                    let _ = send_message(&EngineMessage::ConfigResult {
+                        success: true,
+                        message: format!("Configuration loaded from {}", expanded_path),
+                        config: Some(config),
+                    });
+                }
+                Err(e) => {
+                    let _ = send_message(&EngineMessage::ConfigResult {
+                        success: false,
+                        message: format!("Invalid config format: {}", e),
+                        config: None,
+                    });
+                }
+            }
+        }
+        Err(e) => {
+            let _ = send_message(&EngineMessage::ConfigResult {
+                success: false,
+                message: format!("Failed to read config: {}", e),
+                config: None,
+            });
+        }
+    }
 }

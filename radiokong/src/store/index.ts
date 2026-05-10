@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { StreamStatus, VUMeterData, AudioDevice, EngineConfig, Recording } from '../types'
+import type { StreamStatus, VUMeterData, AudioDevice, EngineConfig, Recording, TestConnectionResult } from '../types'
 
 export interface AdditionalServer {
   id: string
@@ -27,6 +27,7 @@ interface AppState {
   sampleRate: number
   bufferSize: number
   channels: number
+  waveformData: number[] | null
 
   // Mixer state
   mixerChannels: MixerChannelState[]
@@ -60,6 +61,13 @@ interface AppState {
   recordings: Recording[]
   isRecording: boolean
 
+  // Test connection
+  testConnectionResult: TestConnectionResult | null
+  isTestingConnection: boolean
+
+  // Save config status
+  lastConfigSavePath: string | null
+
   // Actions
   setStreamStatus: (status: StreamStatus | null) => void
   setStreaming: (streaming: boolean) => void
@@ -71,8 +79,11 @@ interface AppState {
   setSampleRate: (rate: number) => void
   setBufferSize: (size: number) => void
   setChannels: (ch: number) => void
+  setWaveformData: (data: number[] | null) => void
   setMixerChannels: (channels: MixerChannelState[]) => void
   updateChannel: (id: string, updates: Partial<MixerChannelState>) => void
+  addChannel: (channel: MixerChannelState) => void
+  removeChannel: (id: string) => void
   setMasterVolume: (volume: number) => void
   setMasterMuted: (muted: boolean) => void
   setEncoderFormat: (format: 'mp3' | 'ogg' | 'aac' | 'flac') => void
@@ -84,6 +95,9 @@ interface AppState {
   setMetadata: (metadata: Partial<AppState['currentMetadata']>) => void
   addRecording: (recording: Recording) => void
   setRecording: (recording: boolean) => void
+  setTestConnectionResult: (result: TestConnectionResult | null) => void
+  setTestingConnection: (testing: boolean) => void
+  setLastConfigSavePath: (path: string | null) => void
   getEngineConfig: () => EngineConfig
 }
 
@@ -98,6 +112,8 @@ export interface MixerChannelState {
   device?: string
   vuLevel: { left: number; right: number }
 }
+
+const CHANNEL_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#84cc16']
 
 const DEFAULT_CHANNELS: MixerChannelState[] = [
   {
@@ -156,6 +172,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sampleRate: 44100,
   bufferSize: 2048,
   channels: 2,
+  waveformData: null,
 
   // Mixer state
   mixerChannels: DEFAULT_CHANNELS,
@@ -189,6 +206,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   recordings: [],
   isRecording: false,
 
+  // Test connection
+  testConnectionResult: null,
+  isTestingConnection: false,
+
+  // Save config
+  lastConfigSavePath: null,
+
   // Actions
   setStreamStatus: (status) => set({ streamStatus: status }),
   setStreaming: (streaming) => set({ isStreaming: streaming }),
@@ -201,6 +225,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSampleRate: (rate) => set({ sampleRate: rate }),
   setBufferSize: (size) => set({ bufferSize: size }),
   setChannels: (ch) => set({ channels: ch }),
+  setWaveformData: (data) => set({ waveformData: data }),
 
   setMixerChannels: (channels) => set({ mixerChannels: channels }),
   updateChannel: (id, updates) =>
@@ -208,6 +233,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       mixerChannels: state.mixerChannels.map((ch) =>
         ch.id === id ? { ...ch, ...updates } : ch
       ),
+    })),
+  addChannel: (channel) =>
+    set((state) => ({
+      mixerChannels: [...state.mixerChannels, channel],
+    })),
+  removeChannel: (id) =>
+    set((state) => ({
+      mixerChannels: state.mixerChannels.filter((ch) => ch.id !== id),
     })),
 
   setMasterVolume: (volume) => set({ masterVolume: volume }),
@@ -247,6 +280,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
   setRecording: (recording) => set({ isRecording: recording }),
 
+  setTestConnectionResult: (result) => set({ testConnectionResult: result }),
+  setTestingConnection: (testing) => set({ isTestingConnection: testing }),
+  setLastConfigSavePath: (path) => set({ lastConfigSavePath: path }),
+
   getEngineConfig: () => {
     const state = get()
     return {
@@ -277,3 +314,5 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 }))
+
+export { CHANNEL_COLORS }
