@@ -2,20 +2,21 @@
 //!
 //! Handles audio input device enumeration and audio stream capture using CPAL.
 //! Supports cross-platform audio capture via:
-//! - CoreAudio (macOS)
+//! - CoreAudio (macOS) — no extra dependencies needed!
 //! - WASAPI (Windows)
-//! - ALSA/PulseAudio/JACK/PipeWire (Linux)
+//! - ALSA/PulseAudio/JACK/PipeWire (Linux — requires libasound2-dev)
 //!
-//! When compiled without the `audio-capture` feature, provides stub implementations.
+//! When compiled without the `audio-capture` feature, provides stub implementations
+//! that generate silence (for development/testing without audio hardware).
+
+use crossbeam_channel::{Receiver, Sender};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 #[cfg(feature = "audio-capture")]
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 #[cfg(feature = "audio-capture")]
 use cpal::{Device, Host, Stream, StreamConfig, SampleFormat};
-#[cfg(feature = "audio-capture")]
-use crossbeam_channel::{Receiver, Sender};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 use crate::DeviceInfo;
 
@@ -26,12 +27,13 @@ pub struct AudioCapture {
     #[cfg(feature = "audio-capture")]
     stream: Option<Stream>,
     running: Arc<AtomicBool>,
-    #[cfg(feature = "audio-capture")]
     sample_sender: Option<Sender<Vec<f32>>>,
+    #[cfg(not(feature = "audio-capture"))]
+    silence_thread: Option<std::thread::JoinHandle<()>>,
 }
 
 impl AudioCapture {
-    /// Create a new audio capture instance using the default CPAL host
+    /// Create a new audio capture instance
     pub fn new() -> Self {
         Self {
             #[cfg(feature = "audio-capture")]
@@ -39,8 +41,9 @@ impl AudioCapture {
             #[cfg(feature = "audio-capture")]
             stream: None,
             running: Arc::new(AtomicBool::new(false)),
-            #[cfg(feature = "audio-capture")]
             sample_sender: None,
+            #[cfg(not(feature = "audio-capture"))]
+            silence_thread: None,
         }
     }
 
@@ -86,13 +89,13 @@ impl AudioCapture {
         devices
     }
 
-    /// List all available audio input devices (stub - no audio-capture feature)
+    /// List all available audio input devices (stub when no audio-capture feature)
     #[cfg(not(feature = "audio-capture"))]
     pub fn list_devices(&self) -> Vec<DeviceInfo> {
         vec![
             DeviceInfo {
                 id: "default".to_string(),
-                name: "Default System Input".to_string(),
+                name: "Default System Input (simulated)".to_string(),
                 is_input: true,
                 is_default: true,
                 channels: 2,
@@ -101,7 +104,7 @@ impl AudioCapture {
         ]
     }
 
-    /// Start capturing audio from the specified device
+    /// Start capturing audio from the specified device (real audio capture)
     #[cfg(feature = "audio-capture")]
     pub fn start_capture(
         &mut self,
@@ -154,27 +157,78 @@ impl AudioCapture {
         Ok(receiver)
     }
 
-    /// Start capturing audio (stub - no audio-capture feature)
+    /// Start capturing audio (silence generator when no audio-capture feature)
     #[cfg(not(feature = "audio-capture"))]
     pub fn start_capture(
         &mut self,
         _device_id: &str,
-        _sample_rate: u32,
+        sample_rate: u32,
         _channels: u16,
-        _buffer_size: u32,
-    ) -> Result<(), String> {
-        log::warn!("Audio capture not available (compiled without audio-capture feature)");
-        Ok(())
+        buffer_size: u32,
+    ) -> Result<Receiver<Vec<f32>>, String> {
+        self.stop_capture();
+
+        let (sender, receiver) = crossbeam_channel::bounded(32);
+        self.sample_sender = Some(sender);
+        self.running.store(true, Ordering::SeqCst);
+
+        let running = self.running.clone();
+        let samples_per_buffer = (sample_rate as usize * buffer_size as usize) / 1000;
+        let sender_for_thread = self.sample_sender.clone();
+
+        // Spawn a thread that generates a test tone at the right rate
+        let handle = std::thread::Builder::new()
+            .name("audio-test-tone-gen".to_string())
+            .spawn(move || {
+                let interval = std::time::Duration::from_millis(buffer_size as u64 / 2);
+                let mut phase: f32 = 0.0;
+                let freq = 440.0; // A4 test tone
+                let phase_increment = 2.0 * std::f32::consts::PI * freq / sample_rate as f32;
+
+                while running.load(Ordering::SeqCst) {
+                    // Generate a 440Hz sine wave at low volume for testing
+                    let mut buffer = Vec::with_capacity(samples_per_buffer * 2);
+                    for _ in 0..samples_per_buffer {
+                        let sample = (phase.sin() * 0.1).max(-1.0).min(1.0); // -20dB test tone
+                        buffer.push(sample); // left
+                        buffer.push(sample); // right
+                        phase += phase_increment;
+                        if phase > 2.0 * std::f32::consts::PI {
+                            phase -= 2.0 * std::f32::consts::PI;
+                        }
+                    }
+
+                    if let Some(ref s) = sender_for_thread {
+                        let _ = s.try_send(buffer);
+                    }
+
+                    std::thread::sleep(interval);
+                }
+            })
+            .map_err(|e| format!("Failed to spawn audio thread: {}", e))?;
+
+        self.silence_thread = Some(handle);
+        log::info!("Audio capture started (simulated, 440Hz test tone at -20dB)");
+        Ok(receiver)
     }
 
     /// Stop the current audio capture
     pub fn stop_capture(&mut self) {
         self.running.store(false, Ordering::SeqCst);
+        self.sample_sender = None;
+
         #[cfg(feature = "audio-capture")]
         {
             self.stream = None;
-            self.sample_sender = None;
         }
+
+        #[cfg(not(feature = "audio-capture"))]
+        {
+            if let Some(handle) = self.silence_thread.take() {
+                let _ = handle.join();
+            }
+        }
+
         log::info!("Audio capture stopped");
     }
 

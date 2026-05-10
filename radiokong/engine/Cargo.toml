@@ -22,6 +22,9 @@ audio-capture = ["cpal", "dasp"]
 cpal = { version = "0.15", optional = true }
 dasp = { version = "0.11", features = ["signal", "interpolate", "ring_buffer"], optional = true }
 
+# Cross-platform channel (always needed for audio pipeline)
+crossbeam-channel = "0.5"
+
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -33,9 +36,6 @@ env_logger = "0.11"
 # Error handling
 anyhow = "1"
 thiserror = "1"
-
-# Cross-platform
-crossbeam-channel = { version = "0.5", optional = true }
 
 [profile.release]
 opt-level = 3

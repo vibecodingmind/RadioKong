@@ -67,3 +67,41 @@ Stage Summary:
 - Full DSP pipeline with EQ, Compressor, Limiter, Noise Gate
 - Icecast + SHOUTcast streaming protocol support
 - Subscription tiers: Free / Pro ($9.99/mo) / Studio ($24.99/mo)
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Wire up complete audio pipeline and macOS development setup
+
+Work Log:
+- Rewrote engine/src/main.rs with full audio pipeline: capture → DSP → encode → stream → record
+- Added Arc<Mutex<EngineState>> for thread-safe shared state between command loop and audio thread
+- Implemented run_audio_pipeline() function with dedicated thread:
+  - Reads captured audio from crossbeam channel
+  - Processes through DSP pipeline (gate → EQ → compressor → limiter)
+  - Encodes audio to configured format
+  - Streams encoded data to Icecast/SHOUTcast server
+  - Records to WAV file with proper header
+  - Reports VU meter data at 20fps
+  - Reports stream status at 1fps
+- Updated capture.rs: both feature-gated and non-feature paths now return crossbeam_channel::Receiver<Vec<f32>>
+- Non-audio-capture mode generates 440Hz test tone (-20dB) for development without audio hardware
+- Made crossbeam-channel a required dependency (not optional)
+- Updated Electron main.js for macOS support:
+  - Added macOS detection for hiddenInset titleBarStyle + native traffic lights
+  - Added stdout line buffering for reliable JSON message parsing
+  - Added engine error handling and graceful shutdown
+  - Added macOS dock click behavior (re-open window)
+- Updated Header.tsx to hide custom window controls on macOS (uses native traffic lights)
+- Created setup-mac.sh: One-click macOS dev environment setup (Homebrew + Node + Rust + Docker)
+- Created docker-compose.yml: Icecast test server (localhost:8000, source/hackme)
+- Fixed WAV header overflow issue (0xFFFFFFFF + 36 would overflow u32)
+- Verified both frontend and engine build successfully
+
+Stage Summary:
+- Audio pipeline is now fully wired: Capture → DSP → Encode → Stream
+- macOS development fully supported with native traffic lights and proper window behavior
+- Test tone generator works without real audio hardware (440Hz at -20dB)
+- Icecast test server available via Docker Compose
+- Engine binary: 1.7MB release build
+- Frontend: builds cleanly with Vite

@@ -1,0 +1,26 @@
+version: '3.8'
+
+# Icecast Test Server for RadioKong Development
+# Usage: docker-compose up -d
+# Access: http://localhost:8000
+# Admin: http://localhost:8000/admin (admin/hackme)
+# Source: source/hackme
+
+services:
+  icecast:
+    image: moul/icecast
+    container_name: radiokong-icecast
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      - ICECAST_SOURCE_PASSWORD=hackme
+      - ICECAST_RELAY_PASSWORD=hackme
+      - ICECAST_ADMIN_PASSWORD=hackme
+      - ICECAST_ADMIN_USERNAME=admin
+      - ICECAST_ADMIN_EMAIL=admin@radiokong.local
+      - ICECAST_LOCATION=RadioKong Dev
+      - ICECAST_HOSTNAME=localhost
+      - ICECAST_MAX_CLIENTS=100
+      - ICECAST_MAX_SOURCES=10
+    restart: unless-stopped
