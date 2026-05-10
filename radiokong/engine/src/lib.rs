@@ -211,7 +211,7 @@ pub enum EngineCommand {
     #[serde(rename = "set_metadata")]
     SetMetadata { title: String, artist: String },
     #[serde(rename = "start_recording")]
-    StartRecording { path: String },
+    StartRecording { path: String, format: Option<String> },
     #[serde(rename = "stop_recording")]
     StopRecording,
     #[serde(rename = "list_devices")]

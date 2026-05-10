@@ -23,6 +23,7 @@ export function useAudioEngine() {
   const setTestConnectionResult = useAppStore((s) => s.setTestConnectionResult)
   const setTestingConnection = useAppStore((s) => s.setTestingConnection)
   const setLastConfigSavePath = useAppStore((s) => s.setLastConfigSavePath)
+  const setEngineError = useAppStore((s) => s.setEngineError)
   const vuMetersRef = useRef<VUMeterData | null>(null)
 
   // Auto-reconnect state
@@ -125,6 +126,12 @@ export function useAudioEngine() {
 
           const errorMessage = message.data as Record<string, unknown>
           const errorStr = (errorMessage.message as string || '').toLowerCase()
+
+          // Show the error in the UI for a few seconds
+          const displayMsg = (errorMessage.message as string) || 'Unknown engine error'
+          setEngineError(displayMsg)
+          setTimeout(() => setEngineError(null), 8000)
+
           const isConnectionError =
             errorStr.includes('disconnect') ||
             errorStr.includes('connection') ||

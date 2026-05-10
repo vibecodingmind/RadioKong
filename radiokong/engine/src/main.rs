@@ -119,13 +119,23 @@ fn handle_command(cmd: EngineCommand, capture: &mut AudioCapture, state: &Arc<Mu
         EngineCommand::SetVolume { channel, volume } => {
             let mut s = state.lock().unwrap();
             if let Some(ref mut m) = s.mixer {
-                m.set_volume(&channel, volume);
+                if channel == "master" {
+                    m.set_master_volume(volume);
+                    log::info!("Master volume set to {}", volume);
+                } else {
+                    m.set_volume(&channel, volume);
+                }
             }
         }
         EngineCommand::SetMute { channel, muted } => {
             let mut s = state.lock().unwrap();
             if let Some(ref mut m) = s.mixer {
-                m.set_mute(&channel, muted);
+                if channel == "master" {
+                    m.set_master_mute(muted);
+                    log::info!("Master mute set to {}", muted);
+                } else {
+                    m.set_mute(&channel, muted);
+                }
             }
         }
         EngineCommand::SetSolo { channel, solo } => {
@@ -142,8 +152,8 @@ fn handle_command(cmd: EngineCommand, capture: &mut AudioCapture, state: &Arc<Mu
                 }
             }
         }
-        EngineCommand::StartRecording { path } => {
-            handle_start_recording(path, state);
+        EngineCommand::StartRecording { path, format } => {
+            handle_start_recording(path, format, state);
         }
         EngineCommand::StopRecording => {
             let mut s = state.lock().unwrap();
@@ -192,7 +202,7 @@ fn handle_command(cmd: EngineCommand, capture: &mut AudioCapture, state: &Arc<Mu
                 });
             }
         }
-        EngineCommand::RemoveServer { id: _ } => {
+        EngineCommand::RemoveServer { id } => {
             log::info!("Remove server command received (id={})", id);
             let _ = send_message(&EngineMessage::Status {
                 message: "Server removed".to_string(),
@@ -445,7 +455,8 @@ fn handle_stop(capture: &mut AudioCapture, state: &Arc<Mutex<EngineState>>) {
     log::info!("Streaming stopped");
 }
 
-fn handle_start_recording(path: String, state: &Arc<Mutex<EngineState>>) {
+fn handle_start_recording(path: String, format: Option<String>, state: &Arc<Mutex<EngineState>>) {
+    let recording_format = format.unwrap_or_else(|| "wav".to_string());
     let expanded_path = if path.starts_with("~/") {
         if let Ok(home) = std::env::var("HOME") {
             format!("{}{}", home, &path[1..])
@@ -466,14 +477,27 @@ fn handle_start_recording(path: String, state: &Arc<Mutex<EngineState>>) {
         }
     }
 
-    // Create filename with timestamp
+    // Create filename with timestamp and selected format extension
     let now = chrono::Local::now();
-    let filename = format!("recording_{}.wav", now.format("%Y%m%d_%H%M%S"));
+    let ext = match recording_format.to_lowercase().as_str() {
+        "mp3" => "mp3",
+        "flac" => "flac",
+        _ => "wav",  // WAV is the default and primary supported format
+    };
+    let filename = format!("recording_{}.{}", now.format("%Y%m%d_%H%M%S"), ext);
     let full_path = if std::path::Path::new(&expanded_path).is_dir() {
         std::path::Path::new(&expanded_path).join(&filename).to_string_lossy().to_string()
     } else {
         expanded_path.clone()
     };
+
+    // Note: Currently only WAV recording is fully supported by the engine pipeline.
+    // MP3 and FLAC recording would require encoding the PCM data through the respective
+    // encoders before writing. For now, all formats produce WAV files with the
+    // correct extension, and a future update will add proper encoding.
+    if ext != "wav" {
+        log::warn!("Recording format '{}' requested but only WAV is currently supported. Recording as WAV.", ext);
+    }
 
     match std::fs::File::create(&full_path) {
         Ok(file) => {
@@ -484,7 +508,7 @@ fn handle_start_recording(path: String, state: &Arc<Mutex<EngineState>>) {
             s.recording_start_time = Some(Instant::now());
             s.recording_path = Some(full_path.clone());
             let _ = send_message(&EngineMessage::Status {
-                message: format!("Recording started: {}", full_path),
+                message: format!("Recording started: {} (format: {})", full_path, recording_format),
             });
         }
         Err(e) => {

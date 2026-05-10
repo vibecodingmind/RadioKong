@@ -1,6 +1,7 @@
 import { ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { EngineErrorToast } from './EngineErrorToast'
 
 interface LayoutProps {
   children: ReactNode
@@ -16,6 +17,8 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </main>
       </div>
+      {/* Global engine error toast */}
+      <EngineErrorToast />
     </div>
   )
 }

@@ -68,6 +68,9 @@ interface AppState {
   // Save config status
   lastConfigSavePath: string | null
 
+  // Engine errors (for displaying toast notifications)
+  engineError: string | null
+
   // Actions
   setStreamStatus: (status: StreamStatus | null) => void
   setStreaming: (streaming: boolean) => void
@@ -98,6 +101,7 @@ interface AppState {
   setTestConnectionResult: (result: TestConnectionResult | null) => void
   setTestingConnection: (testing: boolean) => void
   setLastConfigSavePath: (path: string | null) => void
+  setEngineError: (error: string | null) => void
   getEngineConfig: () => EngineConfig
 }
 
@@ -213,6 +217,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Save config
   lastConfigSavePath: null,
 
+  // Engine errors
+  engineError: null,
+
   // Actions
   setStreamStatus: (status) => set({ streamStatus: status }),
   setStreaming: (streaming) => set({ isStreaming: streaming }),
@@ -283,6 +290,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTestConnectionResult: (result) => set({ testConnectionResult: result }),
   setTestingConnection: (testing) => set({ isTestingConnection: testing }),
   setLastConfigSavePath: (path) => set({ lastConfigSavePath: path }),
+  setEngineError: (error) => set({ engineError: error }),
 
   getEngineConfig: () => {
     const state = get()

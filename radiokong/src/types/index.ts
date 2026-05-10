@@ -24,6 +24,7 @@ export interface ElectronAPI {
   // File system
   showItemInFolder: (path: string) => Promise<{ status: string }>;
   openPath: (path: string) => Promise<{ status: string }>;
+  deleteFile: (path: string) => Promise<{ status: string; message?: string }>;
 }
 
 export interface ElectronDialogOptions {
@@ -126,7 +127,7 @@ export type EngineCommand =
   | { type: 'set_mute'; channel: string; muted: boolean }
   | { type: 'set_solo'; channel: string; solo: boolean }
   | { type: 'set_metadata'; title: string; artist: string }
-  | { type: 'start_recording'; path: string }
+  | { type: 'start_recording'; path: string; format?: string }
   | { type: 'stop_recording' }
   | { type: 'list_devices' }
   | { type: 'add_server'; config: ServerConfig }

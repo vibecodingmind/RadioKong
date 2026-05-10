@@ -42,7 +42,8 @@ export function Mixer() {
       vuLevel: { left: 0, right: 0 },
     }
     addChannel(newChannel)
-    // Also tell the engine about the new channel
+    // Tell the engine about the new channel (only effective while streaming;
+    // the channel config is also sent when the engine starts via getEngineConfig)
     if (window.electronAPI) {
       await window.electronAPI.engineCommand({
         type: 'add_channel',
@@ -160,11 +161,34 @@ export function Mixer() {
                   step={0.01}
                   height={120}
                   color="#3b82f6"
-                  onChange={setMasterVolume}
+                  onChange={(v) => {
+                    setMasterVolume(v)
+                    // Send master volume to engine
+                    // The engine's mixer uses channel 0 volume as master,
+                    // so we send a set_volume for a virtual "master" channel
+                    if (window.electronAPI) {
+                      window.electronAPI.engineCommand({
+                        type: 'set_volume',
+                        channel: 'master',
+                        volume: v,
+                      }).catch(() => {})
+                    }
+                  }}
                 />
 
                 <button
-                  onClick={() => setMasterMuted(!masterMuted)}
+                  onClick={() => {
+                    const newMuted = !masterMuted
+                    setMasterMuted(newMuted)
+                    // Send master mute to engine
+                    if (window.electronAPI) {
+                      window.electronAPI.engineCommand({
+                        type: 'set_mute',
+                        channel: 'master',
+                        muted: newMuted,
+                      }).catch(() => {})
+                    }
+                  }}
                   className={`flex h-8 w-8 items-center justify-center rounded text-xs font-bold transition-colors ${
                     masterMuted
                       ? 'bg-red-600 text-white'

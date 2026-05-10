@@ -424,6 +424,20 @@ ipcMain.handle('shell:openPath', async (_event, filePath) => {
   }
 });
 
+// Shell - Delete a file (used for deleting recordings)
+ipcMain.handle('shell:deleteFile', async (_event, filePath) => {
+  try {
+    const fs = require('fs');
+    if (fs.existsSync(filePath)) {
+      await fs.promises.unlink(filePath);
+      return { status: 'ok' };
+    }
+    return { status: 'ok', message: 'File not found (already deleted)' };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+});
+
 // App lifecycle
 app.whenReady().then(createWindow);
 

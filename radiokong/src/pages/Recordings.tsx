@@ -15,8 +15,17 @@ export function Recordings() {
   const isRecording = useAppStore((s) => s.isRecording)
   const recordings = useAppStore((s) => s.recordings)
   const setRecording = useAppStore((s) => s.setRecording)
-  const removeRecording = (id: string) => {
-    // Remove from store - in a full app, also delete the file
+  const removeRecording = async (id: string) => {
+    // Find the recording to get its file path
+    const rec = recordings.find((r) => r.id === id)
+    if (rec?.path && window.electronAPI?.deleteFile) {
+      try {
+        await window.electronAPI.deleteFile(rec.path)
+      } catch (err) {
+        console.error('Failed to delete recording file:', err)
+      }
+    }
+    // Remove from store
     useAppStore.setState((state) => ({
       recordings: state.recordings.filter((r) => r.id !== id),
     }))
@@ -33,6 +42,7 @@ export function Recordings() {
       await window.electronAPI?.engineCommand({
         type: 'start_recording',
         path: recordPath,
+        format: recordFormat,
       })
       setRecording(true)
     }
@@ -164,6 +174,11 @@ export function Recordings() {
                     </button>
                   ))}
                 </div>
+                {recordFormat !== 'wav' && (
+                  <p className="mt-2 text-[10px] text-amber-400/80">
+                    MP3/FLAC recording uses WAV format internally — full encoder support coming soon
+                  </p>
+                )}
               </div>
             </div>
           </div>

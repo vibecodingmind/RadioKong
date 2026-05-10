@@ -37,4 +37,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File system
   showItemInFolder: (path) => ipcRenderer.invoke('shell:showInFolder', path),
   openPath: (path) => ipcRenderer.invoke('shell:openPath', path),
+  deleteFile: (path) => ipcRenderer.invoke('shell:deleteFile', path),
 });

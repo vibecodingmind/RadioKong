@@ -71,10 +71,16 @@ export function LiveStream() {
     if (isStreaming) {
       try {
         await window.electronAPI?.engineStop()
+        // The engine sends a stream_status { connected: false } message
+        // which useAudioEngine handles by calling setStreaming(false) and setStreamStatus(null).
+        // We don't need to manually set these here, but we do it as a fallback
+        // in case the engine has already been killed.
         setStreaming(false)
         setStreamStatus(null)
       } catch (err) {
         console.error('Failed to stop stream:', err)
+        setStreaming(false)
+        setStreamStatus(null)
       }
       return
     }
@@ -83,20 +89,21 @@ export function LiveStream() {
     try {
       const config = useAppStore.getState().getEngineConfig()
       await window.electronAPI?.engineStart(config)
+      // Do NOT set isStreaming=true here.
+      // The engine will send a `stream_status { connected: true }` message
+      // which useAudioEngine handles by calling setStreaming(true) and setStreamStatus(status).
+      // This ensures the UI only shows "connected" when the engine actually connects.
+      // If the connection fails, the engine sends an `error` message which
+      // useAudioEngine handles by calling setStreaming(false) and setConnecting(false).
 
+      // Safety timeout: if no status message arrives within 15 seconds, reset state
       setTimeout(() => {
-        setConnecting(false)
-        setStreaming(true)
-        setStreamStatus({
-          connected: true,
-          bytesSent: 0,
-          uptime: 0,
-          bitrate: encoderBitrate,
-          format: encoderFormat,
-          server: `${serverConfig.host}:${serverConfig.port}`,
-          mount: serverConfig.mount,
-        })
-      }, 1500)
+        const currentState = useAppStore.getState()
+        if (currentState.isConnecting && !currentState.isStreaming) {
+          console.warn('[LiveStream] Connection timeout — no stream_status received from engine')
+          setConnecting(false)
+        }
+      }, 15000)
     } catch (err) {
       console.error('Failed to start stream:', err)
       setConnecting(false)

@@ -4,10 +4,25 @@ import { StereoVUMeter } from '../audio/VUMeter'
 import { VerticalFader, RotaryKnob } from './RotaryKnob'
 import { useAppStore } from '../../store'
 import type { MixerChannelState } from '../../store'
+import type { EngineCommand } from '../../types'
 
 interface MixerChannelProps {
   channel: MixerChannelState
   onUpdate: (id: string, updates: Partial<MixerChannelState>) => void
+}
+
+/**
+ * Send a command to the Rust engine via IPC.
+ * Commands are silently dropped if the engine is not running (which is fine —
+ * the store always updates immediately for responsive UI, and the engine will
+ * sync when it starts up via the config sent with the `start` command).
+ */
+function sendEngineCommand(command: EngineCommand) {
+  if (window.electronAPI) {
+    window.electronAPI.engineCommand(command).catch((err: Error) => {
+      console.warn('[MixerChannel] Engine command failed:', err.message)
+    })
+  }
 }
 
 export function MixerChannel({ channel, onUpdate }: MixerChannelProps) {
@@ -28,6 +43,38 @@ export function MixerChannel({ channel, onUpdate }: MixerChannelProps) {
   const currentDeviceName = channel.device
     ? devices.find((d) => d.id === channel.device)?.name || channel.device
     : 'Default'
+
+  // Handlers that update BOTH the store (for immediate UI response) AND the engine
+
+  const handleVolumeChange = (v: number) => {
+    onUpdate(channel.id, { volume: v })
+    sendEngineCommand({ type: 'set_volume', channel: channel.id, volume: v })
+  }
+
+  const handlePanChange = (v: number) => {
+    onUpdate(channel.id, { pan: v })
+    sendEngineCommand({ type: 'set_pan', channel: channel.id, pan: v })
+  }
+
+  const handleMuteToggle = () => {
+    const newMuted = !channel.muted
+    onUpdate(channel.id, { muted: newMuted })
+    sendEngineCommand({ type: 'set_mute', channel: channel.id, muted: newMuted })
+  }
+
+  const handleSoloToggle = () => {
+    const newSolo = !channel.solo
+    onUpdate(channel.id, { solo: newSolo })
+    sendEngineCommand({ type: 'set_solo', channel: channel.id, solo: newSolo })
+  }
+
+  const handleDeviceChange = (deviceId: string | undefined) => {
+    onUpdate(channel.id, { device: deviceId })
+    if (deviceId) {
+      sendEngineCommand({ type: 'set_channel_device', channel: channel.id, device: deviceId })
+    }
+    setShowDeviceSelect(false)
+  }
 
   return (
     <div
@@ -65,7 +112,7 @@ export function MixerChannel({ channel, onUpdate }: MixerChannelProps) {
         step={0.01}
         height={120}
         color={channel.color}
-        onChange={(v) => onUpdate(channel.id, { volume: v })}
+        onChange={handleVolumeChange}
       />
 
       {/* Pan knob (polished) */}
@@ -77,13 +124,13 @@ export function MixerChannel({ channel, onUpdate }: MixerChannelProps) {
         size={36}
         label="PAN"
         color={channel.color}
-        onChange={(v) => onUpdate(channel.id, { pan: v })}
+        onChange={handlePanChange}
       />
 
       {/* Controls */}
       <div className="flex gap-2">
         <button
-          onClick={() => onUpdate(channel.id, { muted: !channel.muted })}
+          onClick={handleMuteToggle}
           className={`flex h-7 w-7 items-center justify-center rounded text-[10px] font-bold transition-colors ${
             channel.muted
               ? 'bg-red-600 text-white'
@@ -94,7 +141,7 @@ export function MixerChannel({ channel, onUpdate }: MixerChannelProps) {
           {channel.muted ? <VolumeX className="h-3.5 w-3.5" /> : 'M'}
         </button>
         <button
-          onClick={() => onUpdate(channel.id, { solo: !channel.solo })}
+          onClick={handleSoloToggle}
           className={`flex h-7 w-7 items-center justify-center rounded text-[10px] font-bold transition-colors ${
             channel.solo
               ? 'bg-yellow-600 text-white'
@@ -125,7 +172,7 @@ export function MixerChannel({ channel, onUpdate }: MixerChannelProps) {
         {showDeviceSelect && (
           <div className="absolute bottom-full left-0 z-10 mb-1 w-full rounded-lg border border-surface-700 bg-surface-800 py-1 shadow-xl">
             <button
-              onClick={() => { onUpdate(channel.id, { device: undefined }); setShowDeviceSelect(false) }}
+              onClick={() => handleDeviceChange(undefined)}
               className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-[10px] transition-colors hover:bg-surface-700 ${
                 !channel.device ? 'text-brand-400' : 'text-surface-300'
               }`}
@@ -135,7 +182,7 @@ export function MixerChannel({ channel, onUpdate }: MixerChannelProps) {
             {devices.map((device) => (
               <button
                 key={device.id}
-                onClick={() => { onUpdate(channel.id, { device: device.id }); setShowDeviceSelect(false) }}
+                onClick={() => handleDeviceChange(device.id)}
                 className={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-[10px] transition-colors hover:bg-surface-700 ${
                   channel.device === device.id ? 'text-brand-400' : 'text-surface-300'
                 }`}
