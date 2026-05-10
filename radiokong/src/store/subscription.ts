@@ -1,14 +1,5 @@
 import { create } from 'zustand'
 
-// PesaPal configuration for RadioKong
-const PESAPAL_CONFIG = {
-  consumerKey: process.env.PESAPAL_CONSUMER_KEY || '',
-  consumerSecret: process.env.PESAPAL_CONSUMER_SECRET || '',
-  baseUrl: 'https://pay.pesapal.com/v3', // Production: pay.pesapal.com/v3
-  ipnUrl: 'https://api.radiokong.com/api/pesapal/ipn',
-  callbackUrl: 'radiokong://subscription/callback',
-}
-
 export type SubscriptionTier = 'free' | 'pro' | 'studio'
 export type SubscriptionStatus = 'active' | 'past_due' | 'cancelled' | 'trialing' | 'none'
 
@@ -20,6 +11,18 @@ export interface SubscriptionPlan {
   period: string
   features: string[]
   highlighted?: boolean
+}
+
+export interface AdditionalServer {
+  id: string
+  host: string
+  port: number
+  mount: string
+  username: string
+  password: string
+  protocol: 'icecast' | 'shoutcast'
+  enabled: boolean
+  label: string
 }
 
 export interface SubscriptionState {
@@ -159,42 +162,60 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     }
 
     try {
-      // Step 1: Get PesaPal access token
-      const tokenRes = await fetch(`${PESAPAL_CONFIG.baseUrl}/api/Auth/RequestToken`, {
+      // Use Electron IPC for server-side PesaPal API calls (keeps credentials secure)
+      if (window.electronAPI?.subscriptionInitiate) {
+        const result = await window.electronAPI.subscriptionInitiate({
+          tier,
+          email: get().email,
+        })
+
+        if (result.status === 'ok' && result.trackingId) {
+          set({ pesapalTrackingId: result.trackingId, isLoading: false })
+          // The payment page is opened automatically by Electron's shell.openExternal
+          return result.trackingId
+        }
+
+        throw new Error(result.message || 'Failed to initiate PesaPal payment')
+      }
+
+      // Fallback: Direct client-side API calls (for dev without Electron)
+      // This is less secure as PesaPal credentials would be exposed
+      const PESAPAL_BASE = 'https://pay.pesapal.com/v3/api'
+
+      const tokenRes = await fetch(`${PESAPAL_BASE}/Auth/RequestToken`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
-          consumer_key: PESAPAL_CONFIG.consumerKey,
-          consumer_secret: PESAPAL_CONFIG.consumerSecret,
+          consumer_key: '',
+          consumer_secret: '',
         }),
       })
       const tokenData = await tokenRes.json()
       const accessToken = tokenData.token
 
       if (!accessToken) {
-        throw new Error('Failed to get PesaPal access token')
+        throw new Error('PesaPal not configured. Set PESAPAL_CONSUMER_KEY and PESAPAL_CONSUMER_SECRET environment variables.')
       }
 
-      // Step 2: Register IPN URL
-      const ipnRes = await fetch(`${PESAPAL_CONFIG.baseUrl}/api/URLSetup/RegisterIPN`, {
+      const ipnRes = await fetch(`${PESAPAL_BASE}/URLSetup/RegisterIPN`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          url: PESAPAL_CONFIG.ipnUrl,
+          url: 'https://api.radiokong.com/api/pesapal/ipn',
           ipn_notification_type: 'GET',
         }),
       })
       const ipnData = await ipnRes.json()
-      const ipnId = ipnData.ipn_id
 
-      // Step 3: Submit order to PesaPal
-      const orderRes = await fetch(`${PESAPAL_CONFIG.baseUrl}/api/Transactions/SubmitOrderRequest`, {
+      const orderRes = await fetch(`${PESAPAL_BASE}/Transactions/SubmitOrderRequest`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
@@ -202,8 +223,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
           currency: plan.currency,
           amount: plan.price,
           description: `RadioKong ${plan.name} Subscription`,
-          callback_url: PESAPAL_CONFIG.callbackUrl,
-          notification_id: ipnId,
+          callback_url: 'radiokong://subscription/callback',
+          notification_id: ipnData.ipn_id,
           billing_address: {
             email_address: get().email,
             first_name: 'RadioKong',
@@ -215,7 +236,6 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
 
       if (orderData.redirect_url) {
         set({ pesapalTrackingId: orderData.order_tracking_id, isLoading: false })
-        // Open PesaPal payment page in default browser
         window.open(orderData.redirect_url, '_blank')
         return orderData.order_tracking_id
       }
@@ -230,29 +250,43 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   verifyPayment: async (trackingId: string) => {
     set({ isLoading: true })
     try {
-      const tokenRes = await fetch(`${PESAPAL_CONFIG.baseUrl}/api/Auth/RequestToken`, {
+      // Use Electron IPC
+      if (window.electronAPI?.subscriptionVerify) {
+        const result = await window.electronAPI.subscriptionVerify(trackingId)
+
+        if (result.completed && result.tier) {
+          set({
+            tier: result.tier as SubscriptionTier,
+            status: 'active',
+            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            isLoading: false,
+          })
+          return true
+        }
+
+        set({ isLoading: false })
+        return false
+      }
+
+      // Fallback: client-side
+      const PESAPAL_BASE = 'https://pay.pesapal.com/v3/api'
+      const tokenRes = await fetch(`${PESAPAL_BASE}/Auth/RequestToken`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          consumer_key: PESAPAL_CONFIG.consumerKey,
-          consumer_secret: PESAPAL_CONFIG.consumerSecret,
-        }),
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ consumer_key: '', consumer_secret: '' }),
       })
       const tokenData = await tokenRes.json()
 
       const statusRes = await fetch(
-        `${PESAPAL_CONFIG.baseUrl}/api/Transactions/GetTransactionStatus?orderTrackingId=${trackingId}`,
-        {
-          headers: { Authorization: `Bearer ${tokenData.token}` },
-        }
+        `${PESAPAL_BASE}/Transactions/GetTransactionStatus?orderTrackingId=${trackingId}`,
+        { headers: { Accept: 'application/json', Authorization: `Bearer ${tokenData.token}` } }
       )
       const statusData = await statusRes.json()
 
       if (statusData.payment_status === 'COMPLETED') {
-        // Determine tier from the order
         const orderDescription = statusData.description || ''
         let newTier: SubscriptionTier = 'pro'
-        if (orderDescription.includes('Studio')) newTier = 'studio'
+        if (orderDescription.toLowerCase().includes('studio')) newTier = 'studio'
 
         set({
           tier: newTier,
@@ -272,13 +306,14 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   },
 
   cancelSubscription: async () => {
-    // In production, this would call the backend API
+    if (window.electronAPI?.subscriptionCancel) {
+      await window.electronAPI.subscriptionCancel()
+    }
     set({ tier: 'free', status: 'cancelled', currentPeriodEnd: null })
   },
 
   checkStatus: async () => {
-    // In production, check subscription status from backend
-    // For now, read from localStorage
+    // Read from localStorage for persistence
     const saved = localStorage.getItem('radiokong_subscription')
     if (saved) {
       try {

@@ -190,4 +190,16 @@ pub enum EngineCommand {
     StopRecording,
     #[serde(rename = "list_devices")]
     ListDevices,
+    /// Add a secondary streaming server (multi-output)
+    #[serde(rename = "add_server")]
+    AddServer { config: ServerConfig },
+    /// Remove a secondary streaming server by host:port
+    #[serde(rename = "remove_server")]
+    RemoveServer { id: String },
+    /// Set the output (monitor) device
+    #[serde(rename = "set_output_device")]
+    SetOutputDevice { device: String },
+    /// Enable or disable auto-reconnect
+    #[serde(rename = "set_auto_reconnect")]
+    SetAutoReconnect { enabled: bool, max_attempts: u32, interval_secs: u64 },
 }

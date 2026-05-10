@@ -153,6 +153,52 @@ fn handle_command(cmd: EngineCommand, capture: &mut AudioCapture, state: &Arc<Mu
             let devices = capture.list_devices();
             let _ = send_message(&EngineMessage::Devices { list: devices });
         }
+        EngineCommand::AddServer { config } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut streamer) = s.streamer {
+                let content_type = match s.config.as_ref() {
+                    Some(c) => match c.encoder.format {
+                        EncoderFormat::Mp3 => "audio/mpeg",
+                        EncoderFormat::Ogg => "application/ogg",
+                        EncoderFormat::Aac => "audio/aacp",
+                        EncoderFormat::Flac => "audio/flac",
+                    },
+                    None => "audio/mpeg",
+                };
+                streamer.add_server(config, content_type);
+                log::info!("Additional server added");
+                let _ = send_message(&EngineMessage::Status {
+                    message: "Additional server added".to_string(),
+                });
+            } else {
+                let _ = send_message(&EngineMessage::Error {
+                    message: "Cannot add server: not streaming".to_string(),
+                    code: Some("NOT_STREAMING".to_string()),
+                });
+            }
+        }
+        EngineCommand::RemoveServer { id: _ } => {
+            // Server removal is handled by disconnecting additional servers
+            // In a full implementation, we'd track servers by ID
+            log::info!("Remove server command received");
+        }
+        EngineCommand::SetOutputDevice { device } => {
+            log::info!("Output device set to: {}", device);
+            // In a full implementation, this would switch the CPAL output device
+            let _ = send_message(&EngineMessage::Status {
+                message: format!("Output device set to: {}", device),
+            });
+        }
+        EngineCommand::SetAutoReconnect { enabled, max_attempts, interval_secs } => {
+            let mut s = state.lock().unwrap();
+            if let Some(ref mut streamer) = s.streamer {
+                streamer.enable_reconnect(enabled, max_attempts, interval_secs);
+                log::info!("Auto-reconnect: enabled={}, max_attempts={}, interval={}s", enabled, max_attempts, interval_secs);
+            }
+            let _ = send_message(&EngineMessage::Status {
+                message: format!("Auto-reconnect {}", if enabled { "enabled" } else { "disabled" }),
+            });
+        }
     }
 }
 

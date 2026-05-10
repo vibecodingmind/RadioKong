@@ -6,8 +6,14 @@ import {
   CircleDot,
   Settings,
   Mic,
+  CreditCard,
+  Zap,
+  Shield,
+  Crown,
 } from 'lucide-react'
 import { useAppStore } from '../../store'
+import { useSubscriptionStore } from '../../store/subscription'
+import type { SubscriptionTier } from '../../store/subscription'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -19,6 +25,16 @@ const navItems = [
 
 export function Sidebar() {
   const isStreaming = useAppStore((s) => s.isStreaming)
+  const tier = useSubscriptionStore((s) => s.tier)
+  const status = useSubscriptionStore((s) => s.status)
+
+  const tierConfig: Record<SubscriptionTier, { icon: any; label: string; color: string; bg: string }> = {
+    free: { icon: Zap, label: 'Free', color: 'text-surface-400', bg: 'bg-surface-800' },
+    pro: { icon: Shield, label: 'Pro', color: 'text-brand-400', bg: 'bg-brand-600/10' },
+    studio: { icon: Crown, label: 'Studio', color: 'text-purple-400', bg: 'bg-purple-600/10' },
+  }
+
+  const config = tierConfig[tier]
 
   return (
     <aside className="flex w-60 flex-col border-r border-surface-800 bg-surface-950">
@@ -29,9 +45,12 @@ export function Sidebar() {
         </div>
         <div>
           <h1 className="text-base font-bold text-white">RadioKong</h1>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-surface-400">
-            Pro Streamer
-          </p>
+          <div className="flex items-center gap-1.5">
+            <config.icon className={`h-3 w-3 ${config.color}`} />
+            <p className={`text-[10px] font-medium ${config.color}`}>
+              {config.label} Plan
+            </p>
+          </div>
         </div>
       </div>
 
@@ -58,6 +77,22 @@ export function Sidebar() {
           ))}
         </ul>
       </nav>
+
+      {/* Subscription Card */}
+      {tier === 'free' && (
+        <div className="border-t border-surface-800 p-3">
+          <NavLink
+            to="/settings"
+            className="group flex items-center gap-3 rounded-lg bg-brand-600/10 p-3 transition-colors hover:bg-brand-600/20"
+          >
+            <CreditCard className="h-4 w-4 text-brand-400" />
+            <div>
+              <p className="text-xs font-medium text-brand-400">Upgrade to Pro</p>
+              <p className="text-[10px] text-surface-500">Multi-server, DSP, more</p>
+            </div>
+          </NavLink>
+        </div>
+      )}
 
       {/* Stream Status */}
       <div className="border-t border-surface-800 p-4">

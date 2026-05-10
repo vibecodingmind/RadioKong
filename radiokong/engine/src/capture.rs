@@ -47,7 +47,7 @@ impl AudioCapture {
         }
     }
 
-    /// List all available audio input devices
+    /// List all available audio input and output devices
     #[cfg(feature = "audio-capture")]
     pub fn list_devices(&self) -> Vec<DeviceInfo> {
         let mut devices = Vec::new();
@@ -56,7 +56,7 @@ impl AudioCapture {
         if let Ok(default_input) = self.host.default_input_device() {
             if let Ok(config) = default_input.default_input_config() {
                 devices.push(DeviceInfo {
-                    id: "default".to_string(),
+                    id: "default-input".to_string(),
                     name: default_input.name().unwrap_or_else(|_| "Default Input".to_string()),
                     is_input: true,
                     is_default: true,
@@ -86,17 +86,59 @@ impl AudioCapture {
             }
         }
 
+        // Default output device
+        if let Ok(default_output) = self.host.default_output_device() {
+            if let Ok(config) = default_output.default_output_config() {
+                devices.push(DeviceInfo {
+                    id: "default-output".to_string(),
+                    name: default_output.name().unwrap_or_else(|_| "Default Output".to_string()),
+                    is_input: false,
+                    is_default: true,
+                    channels: config.channels(),
+                    sample_rates: vec![config.sample_rate().0],
+                });
+            }
+        }
+
+        // All output devices
+        if let Ok(output_devices) = self.host.output_devices() {
+            for (idx, device) in output_devices.enumerate() {
+                if let Ok(config) = device.default_output_config() {
+                    let name = device.name().unwrap_or_else(|_| format!("Output Device {}", idx));
+                    if devices.iter().any(|d| d.name == name) {
+                        continue;
+                    }
+                    devices.push(DeviceInfo {
+                        id: format!("output-{}", idx),
+                        name,
+                        is_input: false,
+                        is_default: false,
+                        channels: config.channels(),
+                        sample_rates: vec![config.sample_rate().0],
+                    });
+                }
+            }
+        }
+
         devices
     }
 
-    /// List all available audio input devices (stub when no audio-capture feature)
+    /// List all available audio input and output devices (stub when no audio-capture feature)
     #[cfg(not(feature = "audio-capture"))]
     pub fn list_devices(&self) -> Vec<DeviceInfo> {
         vec![
             DeviceInfo {
-                id: "default".to_string(),
+                id: "default-input".to_string(),
                 name: "Default System Input (simulated)".to_string(),
                 is_input: true,
+                is_default: true,
+                channels: 2,
+                sample_rates: vec![44100, 48000],
+            },
+            DeviceInfo {
+                id: "default-output".to_string(),
+                name: "Default System Output (simulated)".to_string(),
+                is_input: false,
                 is_default: true,
                 channels: 2,
                 sample_rates: vec![44100, 48000],
@@ -115,7 +157,7 @@ impl AudioCapture {
     ) -> Result<Receiver<Vec<f32>>, String> {
         self.stop_capture();
 
-        let device = if device_id == "default" || device_id.is_empty() {
+        let device = if device_id == "default" || device_id == "default-input" || device_id.is_empty() {
             self.host.default_input_device()
                 .ok_or("No default input device available")?
         } else {

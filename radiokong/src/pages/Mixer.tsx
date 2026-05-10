@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Plus, Volume2, VolumeX } from 'lucide-react'
 import { useAppStore } from '../store'
+import { useSubscriptionStore, hasFeature } from '../store/subscription'
 import { MixerChannel } from '../components/mixer/MixerChannel'
 import { StereoVUMeter } from '../components/audio/VUMeter'
+import { VerticalFader, RotaryKnob } from '../components/mixer/RotaryKnob'
 
 export function Mixer() {
   const mixerChannels = useAppStore((s) => s.mixerChannels)
@@ -11,6 +13,7 @@ export function Mixer() {
   const updateChannel = useAppStore((s) => s.updateChannel)
   const setMasterVolume = useAppStore((s) => s.setMasterVolume)
   const setMasterMuted = useAppStore((s) => s.setMasterMuted)
+  const tier = useSubscriptionStore((s) => s.tier)
 
   const [activeTab, setActiveTab] = useState<'channels' | 'dsp'>('channels')
 
@@ -18,6 +21,8 @@ export function Mixer() {
     left: Math.max(...mixerChannels.map((ch) => ch.vuLevel.left)) * masterVolume,
     right: Math.max(...mixerChannels.map((ch) => ch.vuLevel.right)) * masterVolume,
   }
+
+  const canDSP = hasFeature(tier, 'dsp')
 
   return (
     <div className="space-y-6">
@@ -93,25 +98,15 @@ export function Mixer() {
                   height={120}
                 />
 
-                <div className="flex flex-col items-center gap-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={masterVolume}
-                    onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
-                    style={{
-                      writingMode: 'vertical-lr' as any,
-                      direction: 'rtl',
-                      width: '32px',
-                      height: '120px',
-                    }}
-                  />
-                  <span className="text-[10px] font-mono text-brand-400">
-                    {Math.round(masterVolume * 100)}%
-                  </span>
-                </div>
+                <VerticalFader
+                  value={masterVolume}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  height={120}
+                  color="#3b82f6"
+                  onChange={setMasterVolume}
+                />
 
                 <button
                   onClick={() => setMasterMuted(!masterMuted)}
@@ -131,8 +126,26 @@ export function Mixer() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : canDSP ? (
         <DSPPanel />
+      ) : (
+        <div className="glass-panel flex flex-col items-center gap-4 p-12 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-800">
+            <Volume2 className="h-8 w-8 text-surface-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white">DSP Effects</h3>
+            <p className="text-sm text-surface-400">
+              Unlock EQ, Compressor, Limiter, and Noise Gate with Pro or Studio
+            </p>
+          </div>
+          <a
+            href="#/settings"
+            className="rounded-lg bg-brand-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-500"
+          >
+            Upgrade via PesaPal
+          </a>
+        </div>
       )}
     </div>
   )
@@ -187,25 +200,18 @@ function DSPPanel() {
         <div className="flex items-end justify-between gap-4 px-4">
           {eqBands.map((band, i) => (
             <div key={band.freq} className="flex flex-col items-center gap-2">
-              <span className="text-[9px] text-surface-500">
-                {band.gain > 0 ? '+' : ''}{band.gain}dB
-              </span>
-              <input
-                type="range"
-                min="-12"
-                max="12"
-                step="0.5"
+              <RotaryKnob
                 value={band.gain}
-                onChange={(e) => {
+                min={-12}
+                max={12}
+                step={0.5}
+                size={44}
+                unit="dB"
+                color={band.gain > 0 ? '#10b981' : band.gain < 0 ? '#ef4444' : '#3b82f6'}
+                onChange={(v) => {
                   const newBands = [...eqBands]
-                  newBands[i].gain = parseFloat(e.target.value)
+                  newBands[i].gain = v
                   setEqBands(newBands)
-                }}
-                style={{
-                  writingMode: 'vertical-lr' as any,
-                  direction: 'rtl',
-                  width: '32px',
-                  height: '120px',
                 }}
               />
               <span className="text-[10px] text-surface-400">{band.label}</span>
@@ -231,40 +237,60 @@ function DSPPanel() {
             {compressor.enabled ? 'ON' : 'OFF'}
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <DSPKnob
+        <div className="grid grid-cols-3 gap-4">
+          <RotaryKnob
             label="Threshold"
             value={compressor.threshold}
             unit="dB"
             min={-60}
             max={0}
+            step={1}
+            size={52}
+            color="#3b82f6"
             onChange={(v) => setCompressor((c) => ({ ...c, threshold: v }))}
           />
-          <DSPKnob
+          <RotaryKnob
             label="Ratio"
             value={compressor.ratio}
             unit=":1"
             min={1}
             max={20}
             step={0.5}
+            size={52}
+            color="#3b82f6"
             onChange={(v) => setCompressor((c) => ({ ...c, ratio: v }))}
           />
-          <DSPKnob
+          <RotaryKnob
+            label="Gain"
+            value={compressor.gain}
+            unit="dB"
+            min={0}
+            max={24}
+            step={0.5}
+            size={52}
+            color="#10b981"
+            onChange={(v) => setCompressor((c) => ({ ...c, gain: v }))}
+          />
+          <RotaryKnob
             label="Attack"
             value={compressor.attack}
             unit="ms"
             min={0.1}
             max={100}
             step={0.1}
+            size={52}
+            color="#f59e0b"
             onChange={(v) => setCompressor((c) => ({ ...c, attack: v }))}
           />
-          <DSPKnob
+          <RotaryKnob
             label="Release"
             value={compressor.release}
             unit="ms"
             min={10}
             max={1000}
             step={10}
+            size={52}
+            color="#f59e0b"
             onChange={(v) => setCompressor((c) => ({ ...c, release: v }))}
           />
         </div>
@@ -287,21 +313,27 @@ function DSPPanel() {
             {limiter.enabled ? 'ON' : 'OFF'}
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <DSPKnob
+        <div className="flex items-center justify-center gap-8">
+          <RotaryKnob
             label="Ceiling"
             value={limiter.ceiling}
             unit="dB"
             min={-12}
             max={0}
+            step={0.5}
+            size={60}
+            color="#ef4444"
             onChange={(v) => setLimiter((l) => ({ ...l, ceiling: v }))}
           />
-          <DSPKnob
+          <RotaryKnob
             label="Release"
             value={limiter.release}
             unit="ms"
             min={1}
             max={500}
+            step={1}
+            size={60}
+            color="#f59e0b"
             onChange={(v) => setLimiter((l) => ({ ...l, release: v }))}
           />
         </div>
@@ -324,71 +356,42 @@ function DSPPanel() {
             {gate.enabled ? 'ON' : 'OFF'}
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <DSPKnob
+        <div className="flex items-center justify-center gap-8">
+          <RotaryKnob
             label="Threshold"
             value={gate.threshold}
             unit="dB"
             min={-80}
             max={0}
+            step={1}
+            size={60}
+            color="#8b5cf6"
             onChange={(v) => setGate((g) => ({ ...g, threshold: v }))}
           />
-          <DSPKnob
+          <RotaryKnob
             label="Attack"
             value={gate.attack}
             unit="ms"
             min={0.1}
             max={50}
             step={0.1}
+            size={60}
+            color="#f59e0b"
             onChange={(v) => setGate((g) => ({ ...g, attack: v }))}
           />
-          <DSPKnob
+          <RotaryKnob
             label="Release"
             value={gate.release}
             unit="ms"
             min={10}
             max={1000}
             step={10}
+            size={60}
+            color="#f59e0b"
             onChange={(v) => setGate((g) => ({ ...g, release: v }))}
           />
         </div>
       </div>
-    </div>
-  )
-}
-
-function DSPKnob({
-  label,
-  value,
-  unit,
-  min,
-  max,
-  step = 1,
-  onChange,
-}: {
-  label: string
-  value: number
-  unit: string
-  min: number
-  max: number
-  step?: number
-  onChange: (value: number) => void
-}) {
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <span className="text-[10px] text-surface-400">{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="h-2 w-full accent-brand-500"
-      />
-      <span className="text-[11px] font-mono text-surface-300">
-        {value}{unit}
-      </span>
     </div>
   )
 }

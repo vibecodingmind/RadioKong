@@ -1,6 +1,18 @@
 import { create } from 'zustand'
 import type { StreamStatus, VUMeterData, AudioDevice, EngineConfig, Recording } from '../types'
 
+export interface AdditionalServer {
+  id: string
+  host: string
+  port: number
+  mount: string
+  username: string
+  password: string
+  protocol: 'icecast' | 'shoutcast'
+  enabled: boolean
+  label: string
+}
+
 interface AppState {
   // Stream state
   streamStatus: StreamStatus | null
@@ -12,6 +24,9 @@ interface AppState {
   audioDevices: AudioDevice[]
   selectedInputDevice: string
   selectedOutputDevice: string
+  sampleRate: number
+  bufferSize: number
+  channels: number
 
   // Mixer state
   mixerChannels: MixerChannelState[]
@@ -32,6 +47,9 @@ interface AppState {
     protocol: 'icecast' | 'shoutcast'
   }
 
+  // Multi-server (Pro/Studio feature)
+  additionalServers: AdditionalServer[]
+
   // Metadata
   currentMetadata: {
     title: string
@@ -50,6 +68,9 @@ interface AppState {
   setAudioDevices: (devices: AudioDevice[]) => void
   setSelectedInputDevice: (id: string) => void
   setSelectedOutputDevice: (id: string) => void
+  setSampleRate: (rate: number) => void
+  setBufferSize: (size: number) => void
+  setChannels: (ch: number) => void
   setMixerChannels: (channels: MixerChannelState[]) => void
   updateChannel: (id: string, updates: Partial<MixerChannelState>) => void
   setMasterVolume: (volume: number) => void
@@ -57,6 +78,9 @@ interface AppState {
   setEncoderFormat: (format: 'mp3' | 'ogg' | 'aac' | 'flac') => void
   setEncoderBitrate: (bitrate: number) => void
   setServerConfig: (config: Partial<AppState['serverConfig']>) => void
+  addAdditionalServer: (server: AdditionalServer) => void
+  updateAdditionalServer: (id: string, updates: Partial<AdditionalServer>) => void
+  removeAdditionalServer: (id: string) => void
   setMetadata: (metadata: Partial<AppState['currentMetadata']>) => void
   addRecording: (recording: Recording) => void
   setRecording: (recording: boolean) => void
@@ -129,6 +153,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   audioDevices: [],
   selectedInputDevice: '',
   selectedOutputDevice: '',
+  sampleRate: 44100,
+  bufferSize: 2048,
+  channels: 2,
 
   // Mixer state
   mixerChannels: DEFAULT_CHANNELS,
@@ -149,6 +176,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     protocol: 'icecast',
   },
 
+  // Multi-server
+  additionalServers: [],
+
   // Metadata
   currentMetadata: {
     title: '',
@@ -168,6 +198,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAudioDevices: (devices) => set({ audioDevices: devices }),
   setSelectedInputDevice: (id) => set({ selectedInputDevice: id }),
   setSelectedOutputDevice: (id) => set({ selectedOutputDevice: id }),
+  setSampleRate: (rate) => set({ sampleRate: rate }),
+  setBufferSize: (size) => set({ bufferSize: size }),
+  setChannels: (ch) => set({ channels: ch }),
 
   setMixerChannels: (channels) => set({ mixerChannels: channels }),
   updateChannel: (id, updates) =>
@@ -188,6 +221,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       serverConfig: { ...state.serverConfig, ...config },
     })),
 
+  addAdditionalServer: (server) =>
+    set((state) => ({
+      additionalServers: [...state.additionalServers, server],
+    })),
+  updateAdditionalServer: (id, updates) =>
+    set((state) => ({
+      additionalServers: state.additionalServers.map((s) =>
+        s.id === id ? { ...s, ...updates } : s
+      ),
+    })),
+  removeAdditionalServer: (id) =>
+    set((state) => ({
+      additionalServers: state.additionalServers.filter((s) => s.id !== id),
+    })),
+
   setMetadata: (metadata) =>
     set((state) => ({
       currentMetadata: { ...state.currentMetadata, ...metadata },
@@ -205,9 +253,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       server: state.serverConfig,
       audio: {
         device: state.selectedInputDevice,
-        sampleRate: 44100,
-        channels: 2,
-        bufferSize: 2048,
+        sampleRate: state.sampleRate,
+        channels: state.channels,
+        bufferSize: state.bufferSize,
       },
       encoder: {
         format: state.encoderFormat,

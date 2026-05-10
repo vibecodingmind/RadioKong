@@ -8,6 +8,30 @@ export interface ElectronAPI {
   maximizeWindow: () => Promise<void>;
   closeWindow: () => Promise<void>;
   isMaximized: () => Promise<boolean>;
+  // Subscription / PesaPal
+  subscriptionInitiate: (data: { tier: string; email: string }) => Promise<SubscriptionIPCResult>;
+  subscriptionVerify: (trackingId: string) => Promise<SubscriptionVerifyResult>;
+  subscriptionCancel: () => Promise<{ status: string }>;
+  // Open external URL
+  openExternal: (url: string) => Promise<{ status: string }>;
+}
+
+export interface SubscriptionIPCResult {
+  status: string;
+  trackingId?: string;
+  redirectUrl?: string;
+  orderId?: string;
+  message?: string;
+}
+
+export interface SubscriptionVerifyResult {
+  status: string;
+  paymentStatus?: string;
+  completed: boolean;
+  tier?: string | null;
+  amount?: number;
+  currency?: string;
+  message?: string;
 }
 
 export interface EngineConfig {
@@ -63,7 +87,9 @@ export type EngineCommand =
   | { type: 'set_metadata'; title: string; artist: string }
   | { type: 'start_recording'; path: string }
   | { type: 'stop_recording' }
-  | { type: 'list_devices' };
+  | { type: 'list_devices' }
+  | { type: 'add_server'; config: ServerConfig }
+  | { type: 'remove_server'; id: string };
 
 export interface EngineMessage {
   type: 'status' | 'vu_meter' | 'stream_status' | 'error' | 'devices';

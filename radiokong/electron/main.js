@@ -1,9 +1,20 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 
 let mainWindow = null;
 let engineProcess = null;
+
+// PesaPal configuration
+const PESAPAL_CONFIG = {
+  consumerKey: process.env.PESAPAL_CONSUMER_KEY || '',
+  consumerSecret: process.env.PESAPAL_CONSUMER_SECRET || '',
+  baseUrl: process.env.PESAPAL_ENV === 'sandbox'
+    ? 'https://cybqa.pesapal.com/pesapalv3/api'
+    : 'https://pay.pesapal.com/v3/api',
+  ipnUrl: process.env.PESAPAL_IPN_URL || 'https://api.radiokong.com/api/pesapal/ipn',
+  callbackUrl: 'radiokong://subscription/callback',
+};
 
 // Get the path to the Rust audio engine binary
 function getEnginePath() {
@@ -123,7 +134,11 @@ function stopEngine() {
   }
 }
 
+// ============================================================
 // IPC Handlers
+// ============================================================
+
+// Audio Engine
 ipcMain.handle('engine:start', async (_event, config) => {
   startAudioEngine();
   // Small delay to let engine initialize
@@ -143,6 +158,7 @@ ipcMain.handle('engine:command', async (_event, command) => {
   return { status: 'ok' };
 });
 
+// Window controls
 ipcMain.handle('window:minimize', () => mainWindow?.minimize());
 ipcMain.handle('window:maximize', () => {
   if (mainWindow?.isMaximized()) mainWindow.unmaximize();
@@ -151,6 +167,174 @@ ipcMain.handle('window:maximize', () => {
 ipcMain.handle('window:close', () => mainWindow?.close());
 ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized());
 
+// Open external URL (for PesaPal payment page)
+ipcMain.handle('open:external', async (_event, url) => {
+  try {
+    await shell.openExternal(url);
+    return { status: 'ok' };
+  } catch (err) {
+    console.error('[PesaPal] Failed to open external URL:', err.message);
+    return { status: 'error', message: err.message };
+  }
+});
+
+// PesaPal Subscription - Initiate Payment
+ipcMain.handle('subscription:initiate', async (_event, data) => {
+  const { tier, email } = data;
+  const planPrices = { pro: 9.99, studio: 24.99 };
+  const planNames = { pro: 'Pro', studio: 'Studio' };
+
+  const price = planPrices[tier];
+  const name = planNames[tier];
+
+  if (!price) {
+    return { status: 'error', message: 'Invalid plan tier' };
+  }
+
+  try {
+    // Step 1: Get PesaPal access token
+    const tokenRes = await fetch(`${PESAPAL_CONFIG.baseUrl}/Auth/RequestToken`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        consumer_key: PESAPAL_CONFIG.consumerKey,
+        consumer_secret: PESAPAL_CONFIG.consumerSecret,
+      }),
+    });
+    const tokenData = await tokenRes.json();
+
+    if (!tokenData.token) {
+      throw new Error(tokenData.error?.message || 'Failed to get PesaPal access token. Check your API credentials.');
+    }
+
+    // Step 2: Register IPN URL
+    const ipnRes = await fetch(`${PESAPAL_CONFIG.baseUrl}/URLSetup/RegisterIPN`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${tokenData.token}`,
+      },
+      body: JSON.stringify({
+        url: PESAPAL_CONFIG.ipnUrl,
+        ipn_notification_type: 'GET',
+      }),
+    });
+    const ipnData = await ipnRes.json();
+    const ipnId = ipnData.ipn_id || ipnData.IPNId;
+
+    // Step 3: Submit order
+    const orderId = `RK-${tier.toUpperCase()}-${Date.now()}`;
+    const orderRes = await fetch(`${PESAPAL_CONFIG.baseUrl}/Transactions/SubmitOrderRequest`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${tokenData.token}`,
+      },
+      body: JSON.stringify({
+        id: orderId,
+        currency: 'USD',
+        amount: price,
+        description: `RadioKong ${name} Subscription - Monthly`,
+        callback_url: PESAPAL_CONFIG.callbackUrl,
+        notification_id: ipnId,
+        billing_address: {
+          email_address: email || 'user@radiokong.com',
+          first_name: 'RadioKong',
+          last_name: 'User',
+          country_code: '',
+          phone_number: '',
+          line_1: '',
+          line_2: '',
+          city: '',
+          state: '',
+          postal_code: '',
+          zip_code: '',
+        },
+      }),
+    });
+    const orderData = await orderRes.json();
+
+    if (orderData.redirect_url) {
+      // Open the PesaPal payment page in the default browser
+      await shell.openExternal(orderData.redirect_url);
+
+      return {
+        status: 'ok',
+        trackingId: orderData.order_tracking_id,
+        redirectUrl: orderData.redirect_url,
+        orderId,
+      };
+    }
+
+    throw new Error(orderData.error?.message || 'Failed to create PesaPal order');
+  } catch (err) {
+    console.error('[PesaPal] Payment initiation failed:', err.message);
+    return { status: 'error', message: err.message };
+  }
+});
+
+// PesaPal Subscription - Verify Payment
+ipcMain.handle('subscription:verify', async (_event, trackingId) => {
+  try {
+    // Get access token
+    const tokenRes = await fetch(`${PESAPAL_CONFIG.baseUrl}/Auth/RequestToken`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        consumer_key: PESAPAL_CONFIG.consumerKey,
+        consumer_secret: PESAPAL_CONFIG.consumerSecret,
+      }),
+    });
+    const tokenData = await tokenRes.json();
+
+    if (!tokenData.token) {
+      throw new Error('Failed to get PesaPal access token');
+    }
+
+    // Check transaction status
+    const statusRes = await fetch(
+      `${PESAPAL_CONFIG.baseUrl}/Transactions/GetTransactionStatus?orderTrackingId=${trackingId}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${tokenData.token}`,
+        },
+      }
+    );
+    const statusData = await statusRes.json();
+
+    const isCompleted = statusData.payment_status === 'COMPLETED';
+
+    // Determine tier from the order description
+    let tier = 'pro';
+    if (statusData.description && statusData.description.toLowerCase().includes('studio')) {
+      tier = 'studio';
+    }
+
+    return {
+      status: 'ok',
+      paymentStatus: statusData.payment_status,
+      completed: isCompleted,
+      tier: isCompleted ? tier : null,
+      amount: statusData.amount,
+      currency: statusData.currency,
+    };
+  } catch (err) {
+    console.error('[PesaPal] Verification failed:', err.message);
+    return { status: 'error', message: err.message, completed: false };
+  }
+});
+
+// PesaPal Subscription - Cancel
+ipcMain.handle('subscription:cancel', async () => {
+  // In production, this would call the backend API to cancel
+  // For now, just return ok - the renderer will handle local state
+  return { status: 'ok' };
+});
+
+// App lifecycle
 app.whenReady().then(createWindow);
 
 // macOS: keep app running when all windows are closed (click dock icon to re-open)

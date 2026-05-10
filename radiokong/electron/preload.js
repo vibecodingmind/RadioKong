@@ -16,4 +16,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
   closeWindow: () => ipcRenderer.invoke('window:close'),
   isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+
+  // Subscription / PesaPal IPC
+  subscriptionInitiate: (data) => ipcRenderer.invoke('subscription:initiate', data),
+  subscriptionVerify: (trackingId) => ipcRenderer.invoke('subscription:verify', trackingId),
+  subscriptionCancel: () => ipcRenderer.invoke('subscription:cancel'),
+
+  // Open external URL (for PesaPal payment redirect)
+  openExternal: (url) => ipcRenderer.invoke('open:external', url),
 });
