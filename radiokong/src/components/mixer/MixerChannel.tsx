@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Volume2, VolumeX, Headphones, ChevronDown } from 'lucide-react'
+import { VolumeX, Headphones, ChevronDown } from 'lucide-react'
 import { StereoVUMeter } from '../audio/VUMeter'
 import { VerticalFader, RotaryKnob } from './RotaryKnob'
 import { useAppStore } from '../../store'

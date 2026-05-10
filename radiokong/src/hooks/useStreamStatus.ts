@@ -8,7 +8,6 @@ import { useAppStore } from '../store'
 export function useStreamStatus() {
   const isStreaming = useAppStore((s) => s.isStreaming)
   const streamStatus = useAppStore((s) => s.streamStatus)
-  const mixerChannels = useAppStore((s) => s.mixerChannels)
   const updateChannel = useAppStore((s) => s.updateChannel)
 
   const [uptime, setUptime] = useState(0)

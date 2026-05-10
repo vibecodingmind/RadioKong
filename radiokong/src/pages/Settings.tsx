@@ -19,9 +19,10 @@ import {
   Trash2,
   Network,
   Lock,
+  Building2,
 } from 'lucide-react'
 import { useAppStore } from '../store'
-import { PLANS, useSubscriptionStore, hasFeature, getTierLimit } from '../store/subscription'
+import { PLANS, useSubscriptionStore, getTierLimit } from '../store/subscription'
 import type { SubscriptionTier } from '../store/subscription'
 
 type SettingsTab = 'server' | 'audio' | 'encoder' | 'subscription' | 'about'
@@ -654,7 +655,7 @@ function AccountSettings() {
         </div>
 
         {/* Plans */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {PLANS.map((plan) => (
             <PlanCard
               key={plan.tier}
@@ -740,6 +741,7 @@ function PlanCard({
     free: Zap,
     pro: Shield,
     studio: Crown,
+    enterprise: Building2,
   }
   const Icon = iconMap[plan.tier] || Zap
 

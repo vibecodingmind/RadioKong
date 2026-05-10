@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type SubscriptionTier = 'free' | 'pro' | 'studio'
+export type SubscriptionTier = 'free' | 'pro' | 'studio' | 'enterprise'
 export type SubscriptionStatus = 'active' | 'past_due' | 'cancelled' | 'trialing' | 'none'
 
 export interface SubscriptionPlan {
@@ -96,6 +96,27 @@ export const PLANS: SubscriptionPlan[] = [
       'Team collaboration',
     ],
   },
+  {
+    tier: 'enterprise',
+    name: 'Enterprise',
+    price: 49.99,
+    currency: 'USD',
+    period: '/month',
+    features: [
+      'Unlimited servers + clusters',
+      'All encoders + custom formats',
+      'Full DSP + mastering suite',
+      '32 channels',
+      'Multi-output + geo-routing',
+      'Auto-reconnect + failover + backup',
+      'Dedicated account manager',
+      'Custom API + webhooks',
+      'White-label + custom branding',
+      'Team collaboration + SSO',
+      'SLA guarantee (99.9%)',
+      'On-premise deployment option',
+    ],
+  },
 ]
 
 // Feature gating based on tier
@@ -127,17 +148,27 @@ export const TIER_LIMITS = {
     autoReconnect: true,
     multiOutput: true,
   },
+  enterprise: {
+    maxServers: Infinity,
+    maxChannels: 32,
+    encoders: ['mp3', 'ogg', 'aac', 'flac'] as string[],
+    dsp: true,
+    recording: true,
+    autoReconnect: true,
+    multiOutput: true,
+  },
 } as const
 
 export function hasFeature(tier: SubscriptionTier, feature: keyof typeof TIER_LIMITS.free): boolean {
-  return TIER_LIMITS[tier][feature] as boolean
+  return Boolean((TIER_LIMITS[tier] as typeof TIER_LIMITS.free)[feature])
 }
 
 export function getTierLimit<K extends keyof typeof TIER_LIMITS.free>(
   tier: SubscriptionTier,
   limit: K
 ): (typeof TIER_LIMITS.free)[K] {
-  return TIER_LIMITS[tier][limit]
+  // Cast through unknown to handle the const assertion with enterprise tier addition
+  return (TIER_LIMITS[tier] as typeof TIER_LIMITS.free)[limit]
 }
 
 export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
@@ -287,6 +318,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         const orderDescription = statusData.description || ''
         let newTier: SubscriptionTier = 'pro'
         if (orderDescription.toLowerCase().includes('studio')) newTier = 'studio'
+        if (orderDescription.toLowerCase().includes('enterprise')) newTier = 'enterprise'
 
         set({
           tier: newTier,

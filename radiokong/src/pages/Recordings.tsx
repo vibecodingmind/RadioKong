@@ -5,7 +5,6 @@ import {
   Play,
   Trash2,
   Download,
-  HardDrive,
   Clock,
   FileAudio,
 } from 'lucide-react'
@@ -15,7 +14,6 @@ export function Recordings() {
   const isRecording = useAppStore((s) => s.isRecording)
   const recordings = useAppStore((s) => s.recordings)
   const setRecording = useAppStore((s) => s.setRecording)
-  const addRecording = useAppStore((s) => s.addRecording)
 
   const [recordPath, setRecordPath] = useState('~/Recordings/RadioKong')
   const [recordFormat, setRecordFormat] = useState<'wav' | 'mp3' | 'flac'>('wav')

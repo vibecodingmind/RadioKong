@@ -181,8 +181,8 @@ ipcMain.handle('open:external', async (_event, url) => {
 // PesaPal Subscription - Initiate Payment
 ipcMain.handle('subscription:initiate', async (_event, data) => {
   const { tier, email } = data;
-  const planPrices = { pro: 9.99, studio: 24.99 };
-  const planNames = { pro: 'Pro', studio: 'Studio' };
+  const planPrices = { pro: 9.99, studio: 24.99, enterprise: 49.99 };
+  const planNames = { pro: 'Pro', studio: 'Studio', enterprise: 'Enterprise' };
 
   const price = planPrices[tier];
   const name = planNames[tier];
@@ -331,6 +331,63 @@ ipcMain.handle('subscription:verify', async (_event, trackingId) => {
 ipcMain.handle('subscription:cancel', async () => {
   // In production, this would call the backend API to cancel
   // For now, just return ok - the renderer will handle local state
+  return { status: 'ok' };
+});
+
+// Auth - Login
+ipcMain.handle('auth:login', async (_event, data) => {
+  const { email, password } = data;
+  try {
+    // In production, this would validate against a backend API
+    // For now, return a simulated user
+    if (!email || !password) {
+      return { status: 'error', message: 'Email and password are required' };
+    }
+    if (password.length < 6) {
+      return { status: 'error', message: 'Invalid email or password' };
+    }
+
+    const user = {
+      id: `user-${Date.now()}`,
+      email,
+      displayName: email.split('@')[0],
+      createdAt: new Date().toISOString(),
+      tier: 'free',
+    };
+
+    return { status: 'ok', user };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+});
+
+// Auth - Signup
+ipcMain.handle('auth:signup', async (_event, data) => {
+  const { email, password, displayName } = data;
+  try {
+    if (!email || !password || !displayName) {
+      return { status: 'error', message: 'All fields are required' };
+    }
+    if (password.length < 6) {
+      return { status: 'error', message: 'Password must be at least 6 characters' };
+    }
+
+    const user = {
+      id: `user-${Date.now()}`,
+      email,
+      displayName,
+      createdAt: new Date().toISOString(),
+      tier: 'free',
+    };
+
+    return { status: 'ok', user };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+});
+
+// Auth - Logout
+ipcMain.handle('auth:logout', async () => {
   return { status: 'ok' };
 });
 

@@ -1,10 +1,14 @@
 import { useEffect, useCallback, useRef } from 'react'
 import { useAppStore } from '../store'
+import { useSubscriptionStore, hasFeature } from '../store/subscription'
 import type { EngineMessage, VUMeterData, StreamStatus } from '../types'
+
+const MAX_RECONNECT_ATTEMPTS = 5
+const RECONNECT_INTERVAL_MS = 5000
 
 /**
  * Hook to communicate with the Rust audio engine via Electron IPC.
- * Handles engine messages, VU meter updates, stream status, and error handling.
+ * Handles engine messages, VU meter updates, stream status, auto-reconnect, and error handling.
  */
 export function useAudioEngine() {
   const setVUMeters = useAppStore((s) => s.setVUMeters)
@@ -15,12 +19,62 @@ export function useAudioEngine() {
   const updateChannel = useAppStore((s) => s.updateChannel)
   const vuMetersRef = useRef<VUMeterData | null>(null)
 
+  // Auto-reconnect state
+  const reconnectAttemptsRef = useRef(0)
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const wasStreamingRef = useRef(false)
+  const isManualStopRef = useRef(false)
+
+  // Auto-reconnect logic
+  const attemptReconnect = useCallback(async () => {
+    const tier = useSubscriptionStore.getState().tier
+    const canAutoReconnect = hasFeature(tier, 'autoReconnect')
+
+    if (!canAutoReconnect) {
+      console.log('[Auto-Reconnect] Not available on free tier')
+      return
+    }
+
+    if (isManualStopRef.current) {
+      console.log('[Auto-Reconnect] Stream was manually stopped, skipping reconnect')
+      return
+    }
+
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.log(`[Auto-Reconnect] Max attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`)
+      useAppStore.getState().setStreaming(false)
+      useAppStore.getState().setStreamStatus(null)
+      return
+    }
+
+    reconnectAttemptsRef.current++
+    console.log(
+      `[Auto-Reconnect] Attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} in ${RECONNECT_INTERVAL_MS / 1000}s...`
+    )
+
+    reconnectTimerRef.current = setTimeout(async () => {
+      const state = useAppStore.getState()
+      if (!state.isStreaming && wasStreamingRef.current && !isManualStopRef.current) {
+        try {
+          state.setConnecting(true)
+          const config = state.getEngineConfig()
+          await window.electronAPI?.engineStart(config)
+          console.log('[Auto-Reconnect] Reconnection attempt sent')
+        } catch (err) {
+          console.error('[Auto-Reconnect] Failed:', err)
+          // Retry again
+          attemptReconnect()
+        }
+      }
+    }, RECONNECT_INTERVAL_MS)
+  }, [])
+
   // Handle incoming engine messages
   const handleEngineMessage = useCallback(
     (message: EngineMessage) => {
       switch (message.type) {
         case 'vu_meter': {
-          const vuData = message.data as VUMeterData
+          const vuData = message.data as unknown as VUMeterData
           setVUMeters(vuData)
           vuMetersRef.current = vuData
 
@@ -42,22 +96,49 @@ export function useAudioEngine() {
         }
 
         case 'stream_status': {
-          const status = message.data as StreamStatus
+          const status = message.data as unknown as StreamStatus
           setStreamStatus(status)
           setStreaming(status.connected)
           setConnecting(false)
+
+          if (status.connected) {
+            // Reset reconnect counter on successful connection
+            reconnectAttemptsRef.current = 0
+            wasStreamingRef.current = true
+            if (reconnectTimerRef.current) {
+              clearTimeout(reconnectTimerRef.current)
+              reconnectTimerRef.current = null
+            }
+          }
           break
         }
 
         case 'error': {
           console.error('[Engine Error]', message.data)
           setConnecting(false)
-          setStreaming(false)
+
+          const errorMessage = message.data as Record<string, unknown>
+          const errorStr = (errorMessage.message as string || '').toLowerCase()
+          const isConnectionError =
+            errorStr.includes('disconnect') ||
+            errorStr.includes('connection') ||
+            errorStr.includes('timeout') ||
+            errorStr.includes('reset') ||
+            errorStr.includes('refused') ||
+            errorStr.includes('broken pipe')
+
+          if (isConnectionError && wasStreamingRef.current && !isManualStopRef.current) {
+            // Connection dropped — try to reconnect
+            setStreaming(false)
+            attemptReconnect()
+          } else {
+            setStreaming(false)
+          }
           break
         }
 
         case 'devices': {
-          const devices = message.data as any[]
+          const devices = message.data as unknown as any[]
           setAudioDevices(devices)
           break
         }
@@ -71,7 +152,7 @@ export function useAudioEngine() {
           console.log('[Engine] Unknown message type:', message.type)
       }
     },
-    [setVUMeters, setStreamStatus, setStreaming, setConnecting, setAudioDevices, updateChannel]
+    [setVUMeters, setStreamStatus, setStreaming, setConnecting, setAudioDevices, updateChannel, attemptReconnect]
   )
 
   // Register message listener
@@ -82,6 +163,13 @@ export function useAudioEngine() {
       // Request device list on mount
       window.electronAPI.engineCommand({ type: 'list_devices' })
     }
+
+    return () => {
+      // Clean up reconnect timer on unmount
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+      }
+    }
   }, [handleEngineMessage])
 
   // Start streaming
@@ -91,6 +179,9 @@ export function useAudioEngine() {
       return
     }
 
+    isManualStopRef.current = false
+    reconnectAttemptsRef.current = 0
+    wasStreamingRef.current = false
     setConnecting(true)
     try {
       const config = useAppStore.getState().getEngineConfig()
@@ -104,6 +195,15 @@ export function useAudioEngine() {
   // Stop streaming
   const stopStream = useCallback(async () => {
     if (!window.electronAPI) return
+
+    isManualStopRef.current = true
+    wasStreamingRef.current = false
+
+    // Clear reconnect timer
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
 
     try {
       await window.electronAPI.engineStop()

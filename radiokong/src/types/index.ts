@@ -14,6 +14,10 @@ export interface ElectronAPI {
   subscriptionCancel: () => Promise<{ status: string }>;
   // Open external URL
   openExternal: (url: string) => Promise<{ status: string }>;
+  // Auth
+  authLogin: (data: { email: string; password: string }) => Promise<AuthIPCResult>;
+  authSignup: (data: { email: string; password: string; displayName: string }) => Promise<AuthIPCResult>;
+  authLogout: () => Promise<{ status: string }>;
 }
 
 export interface SubscriptionIPCResult {
@@ -31,6 +35,19 @@ export interface SubscriptionVerifyResult {
   tier?: string | null;
   amount?: number;
   currency?: string;
+  message?: string;
+}
+
+export interface AuthIPCResult {
+  status: string;
+  user?: {
+    id: string;
+    email: string;
+    displayName: string;
+    avatar?: string;
+    createdAt: string;
+    tier: string;
+  };
   message?: string;
 }
 

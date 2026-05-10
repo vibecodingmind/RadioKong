@@ -24,4 +24,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Open external URL (for PesaPal payment redirect)
   openExternal: (url) => ipcRenderer.invoke('open:external', url),
+
+  // Auth
+  authLogin: (data) => ipcRenderer.invoke('auth:login', data),
+  authSignup: (data) => ipcRenderer.invoke('auth:signup', data),
+  authLogout: () => ipcRenderer.invoke('auth:logout'),
 });

@@ -10,9 +10,13 @@ import {
   Zap,
   Shield,
   Crown,
+  Building2,
+  LogOut,
+  User,
 } from 'lucide-react'
 import { useAppStore } from '../../store'
 import { useSubscriptionStore } from '../../store/subscription'
+import { useAuthStore } from '../../store/auth'
 import type { SubscriptionTier } from '../../store/subscription'
 
 const navItems = [
@@ -26,12 +30,15 @@ const navItems = [
 export function Sidebar() {
   const isStreaming = useAppStore((s) => s.isStreaming)
   const tier = useSubscriptionStore((s) => s.tier)
-  const status = useSubscriptionStore((s) => s.status)
+  const user = useAuthStore((s) => s.user)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const logout = useAuthStore((s) => s.logout)
 
   const tierConfig: Record<SubscriptionTier, { icon: any; label: string; color: string; bg: string }> = {
     free: { icon: Zap, label: 'Free', color: 'text-surface-400', bg: 'bg-surface-800' },
     pro: { icon: Shield, label: 'Pro', color: 'text-brand-400', bg: 'bg-brand-600/10' },
     studio: { icon: Crown, label: 'Studio', color: 'text-purple-400', bg: 'bg-purple-600/10' },
+    enterprise: { icon: Building2, label: 'Enterprise', color: 'text-amber-400', bg: 'bg-amber-600/10' },
   }
 
   const config = tierConfig[tier]
@@ -78,7 +85,7 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Subscription Card */}
+      {/* Subscription Card (show upgrade prompt for free tier) */}
       {tier === 'free' && (
         <div className="border-t border-surface-800 p-3">
           <NavLink
@@ -93,6 +100,49 @@ export function Sidebar() {
           </NavLink>
         </div>
       )}
+
+      {/* User Profile Section */}
+      <div className="border-t border-surface-800 p-3">
+        {isAuthenticated && user ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 rounded-lg bg-surface-900/80 p-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600/20">
+                {user.avatar ? (
+                  <img src={user.avatar} alt="" className="h-8 w-8 rounded-full" />
+                ) : (
+                  <span className="text-xs font-bold text-brand-400">
+                    {user.displayName.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-xs font-medium text-white">{user.displayName}</p>
+                <p className="truncate text-[10px] text-surface-500">{user.email}</p>
+              </div>
+              <button
+                onClick={() => logout()}
+                className="rounded p-1 text-surface-500 transition-colors hover:bg-surface-800 hover:text-red-400"
+                title="Sign out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <NavLink
+            to="/auth"
+            className="flex items-center gap-3 rounded-lg bg-surface-900/80 p-3 transition-colors hover:bg-surface-800"
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-700">
+              <User className="h-4 w-4 text-surface-400" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-white">Sign In</p>
+              <p className="text-[10px] text-surface-500">Access your account</p>
+            </div>
+          </NavLink>
+        )}
+      </div>
 
       {/* Stream Status */}
       <div className="border-t border-surface-800 p-4">

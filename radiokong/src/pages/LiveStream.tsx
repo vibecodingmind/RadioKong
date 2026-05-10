@@ -4,7 +4,6 @@ import {
   Square,
   Wifi,
   WifiOff,
-  RefreshCw,
   Music,
   User,
   Send,
@@ -17,11 +16,9 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
-  Settings,
 } from 'lucide-react'
 import { useAppStore } from '../store'
-import { useSubscriptionStore, hasFeature, getTierLimit, PLANS } from '../store/subscription'
-import type { AdditionalServer, SubscriptionTier } from '../store/subscription'
+import { useSubscriptionStore, hasFeature, getTierLimit } from '../store/subscription'
 import { StereoVUMeter } from '../components/audio/VUMeter'
 import { WaveformDisplay } from '../components/audio/WaveformDisplay'
 
@@ -35,7 +32,6 @@ export function LiveStream() {
   const currentMetadata = useAppStore((s) => s.currentMetadata)
   const mixerChannels = useAppStore((s) => s.mixerChannels)
   const masterVolume = useAppStore((s) => s.masterVolume)
-  const masterMuted = useAppStore((s) => s.masterMuted)
   const selectedInputDevice = useAppStore((s) => s.selectedInputDevice)
   const selectedOutputDevice = useAppStore((s) => s.selectedOutputDevice)
   const audioDevices = useAppStore((s) => s.audioDevices)
@@ -69,7 +65,6 @@ export function LiveStream() {
   const inputs = inputDevices.length > 0 ? inputDevices : mockInputDevices
   const outputs = outputDevices.length > 0 ? outputDevices : mockOutputDevices
 
-  const maxServers = getTierLimit(subscriptionTier, 'maxServers')
   const canMultiServer = subscriptionTier !== 'free'
 
   const handleConnect = async () => {
@@ -798,12 +793,12 @@ function MultiServerConfig() {
 /** Subscription badge shown on the right panel */
 function SubscriptionBadge() {
   const tier = useSubscriptionStore((s) => s.tier)
-  const status = useSubscriptionStore((s) => s.status)
 
   const tierInfo: Record<string, { label: string; color: string; bg: string }> = {
     free: { label: 'Free', color: 'text-surface-400', bg: 'bg-surface-800' },
     pro: { label: 'Pro', color: 'text-brand-400', bg: 'bg-brand-600/10' },
     studio: { label: 'Studio', color: 'text-purple-400', bg: 'bg-purple-600/10' },
+    enterprise: { label: 'Enterprise', color: 'text-amber-400', bg: 'bg-amber-600/10' },
   }
 
   const info = tierInfo[tier] || tierInfo.free
